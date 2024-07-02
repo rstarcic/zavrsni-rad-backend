@@ -3,9 +3,15 @@ import cors from "cors";
 import { syncModels } from "./models/index.js";
 import { registerUser } from "./handlers/registerUser.js";
 import { checkCredentials } from "./handlers/loginUser.js";
+import { updateDataByUserId } from "./handlers/profileHandler.js";
+import { createEducation, fetchEducation } from "./handlers/educationHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
+import { authenticateToken } from "./middlewares/authMiddleware.js";
 import jwt from "jsonwebtoken";
+import path from "path";
+import { fileURLToPath } from 'url';
+import multer from "multer";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
 
@@ -133,60 +139,115 @@ router.route("/auth/login").post(async (req, res) => {
   }
 });
 
-/*
-async function getBusinessClients() {
-  try {
-    const businessClients = await Client.scope("business").findAll();
-    console.log(businessClients);
-    return businessClients;
-  } catch (error) {
-    console.error("Error fetching business clients:", error);
-    throw new Error("Error fetching business clients");
+
+// multer
+const storage = multer.diskStorage({
+  destination: function(req, file, cb) {
+      cb(null, 'public/uploads/')
+  },
+  filename: function(req, file, cb) {
+      cb(null, `${Date.now()}-${file.originalname}`)
   }
-}
+});
 
-getBusinessClients();
+const upload = multer({ storage: storage });
 
-async function getBusinessClientById(clientId) {
+router.route('/service-provider/profile').post( upload.single('file'), async (req, res) => {
   try {
-    const businessClient = await Client.scope("business").findByPk(clientId);
-    console.log(businessClient);
-    return businessClient;
+    const userId = req.body.userId;
+    console.log(userId);
+    const user = await ServiceProvider.findByPk(userId);
+    console.log(req.body);  // Check other form data
+    console.log(req.file); 
+      if (user) {
+          user.profileImage = `/uploads/${req.file.filename}`;
+          await user.save();
+          res.send({ message: 'Profile photo updated successfully', data: user });
+      } else {
+          res.status(404).send({ message: 'User not found' });
+      }
   } catch (error) {
-    console.error("Error fetching business client:", error);
-    throw new Error("Error fetching business client");
+      console.error(error);
+      res.status(500).send({ message: 'Error updating profile photo' });
   }
-}
+});
 
-getBusinessClientById(1); // Pretpostavljajući da je ID klijenta 2
-
-async function geIndividualClients() {
+router.route('/service-provider/profile').patch(async (req, res) => {
   try {
-    const businessClients = await Client.scope("individual").findAll();
-    console.log(businessClients);
-    return businessClients;
-  } catch (error) {
-    console.error("Error fetching business clients:", error);
-    throw new Error("Error fetching business clients");
+    const userData = req.body;
+    console.log(userData);
+    const userDataUpdated = await updateDataByUserId(userData);
+    if (userDataUpdated) {
+      res.status(200).send({ message: 'Profile updated successfully', data: userDataUpdated });
+    }
+    else {
+      res.status(400).send({ message: ' Failed to update profile.' });
+    }
   }
-}
+    catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error. Failed to update profile.",
+    });
+  }
+})
 
-geIndividualClients();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use('/uploads', express.static(path.join(__dirname, './public/uploads')));
 
-async function getIndividualClientById(clientId) {
+router.route('/service-provider/profile/:userId').get(async (req, res) => {
+  const user = await ServiceProvider.findByPk(req.params.userId);
+  if (!user || !user.profileImage) {
+      return res.status(404).send('Photo not found.');
+  }
+  const photoUrl = user.profileImage
+    ? `http://localhost:3001${user.profileImage}`
+    : '';
+  res.json({ photoUrl });
+});
+
+
+router.route('/service-provider/profile/education').post(async (req, res) => {
   try {
-    const businessClient = await Client.scope("individual").findByPk(clientId);
-    console.log(businessClient);
-    return businessClient;
-  } catch (error) {
-    console.error("Error fetching business client:", error);
-    throw new Error("Error fetching business client");
-  }
+    const { educationList, userId } = req.body;
+    const educationCreated = await createEducation(userId, educationList);
+    if (educationCreated) {
+      res
+        .status(200)
+        .json({ message: "Education added successfully", educationCreated });
+    }
+    else {
+      res
+        .status(400)
+        .json({ message: "Adding education failed" });
 }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+})
 
-getIndividualClientById(2);
+router.route('/service-provider/profile/education/:userId').get(async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const educationFetched = await fetchEducation(userId);
+    console.log(educationFetched);
+    if (educationFetched) {
+      res
+        .status(200)
+        .json({ message: "Education fetched successfully", educationFetched });
+    }
+    else {
+      res
+        .status(400)
+        .json({ message: "Fetching education failed" });
+}
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+})
 
-*/
 syncModels().then(() => {
   app.listen(port, () => {
     console.log(`Service is running on http://localhost:${port}`);

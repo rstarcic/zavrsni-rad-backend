@@ -1,4 +1,3 @@
-import db from "../db/connection.js";
 import bcrypt from "bcrypt";
 import Client from "../models/Client.js";
 import ServiceProvider from "../models/ServiceProvider.js";
