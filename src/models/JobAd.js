@@ -19,7 +19,7 @@ const JobAd = sequelize.define('JobAd', {
         allowNull: false,
         defaultValue: "One-time",
     },
-    paymentAmount: {
+    hourlyRate: {
         type: DataTypes.FLOAT, 
         allowNull: false,
     },
@@ -61,6 +61,10 @@ const JobAd = sequelize.define('JobAd', {
         type: DataTypes.DATE,
         allowNull: false,
     },
+    workDeadline: {
+        type: DataTypes.DATE,
+        allowNull: false,
+    },
     workConditions: {
         type: DataTypes.TEXT,
         allowNull: false,
@@ -78,7 +82,7 @@ const JobAd = sequelize.define('JobAd', {
         },
     },
 }, {
-    timestamps: false,
+    timestamps: true,
 });
 
 export default JobAd;
