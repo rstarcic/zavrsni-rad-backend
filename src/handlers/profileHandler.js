@@ -41,4 +41,24 @@ async function updateDataByUserId(userData) {
   }
 }
 
-export { updateDataByUserId }
+async function updateAboutMeFieldByUserId(aboutMe, userId) {
+  const user = await ServiceProvider.findByPk(userId);
+  if (user) {
+    user.aboutMeSummary = aboutMe;
+    user.save();
+    return user;
+  }
+  return null;
+}
+
+async function updateSkillsByUserId(skills, userId) {
+  const user = await ServiceProvider.findByPk(userId);
+  console.log(user)
+  if (user) {
+    user.skills = skills;
+    user.save();
+    return user;
+  }
+  return null;
+}
+export { updateDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId }

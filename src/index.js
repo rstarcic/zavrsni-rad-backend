@@ -3,8 +3,9 @@ import cors from "cors";
 import { syncModels } from "./models/index.js";
 import { registerUser } from "./handlers/registerUser.js";
 import { checkCredentials } from "./handlers/loginUser.js";
-import { updateDataByUserId } from "./handlers/profileHandler.js";
+import { updateDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId } from "./handlers/profileHandler.js";
 import { createEducation, fetchEducation } from "./handlers/educationHandler.js";
+import { createWorkExperience } from "./handlers/workExperienceHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -157,7 +158,7 @@ router.route('/service-provider/profile').post( upload.single('file'), async (re
     const userId = req.body.userId;
     console.log(userId);
     const user = await ServiceProvider.findByPk(userId);
-    console.log(req.body);  // Check other form data
+    console.log(req.body);
     console.log(req.file); 
       if (user) {
           user.profileImage = `/uploads/${req.file.filename}`;
@@ -247,6 +248,62 @@ router.route('/service-provider/profile/education/:userId').get(async (req, res)
     res.status(500).json({ success: false, message: error.message });
   }
 })
+
+router.route('/service-provider/profile/work-experience').post(async (req, res) => {
+  try {
+    const { workExperienceList, userId } = req.body;
+    const workExperienceCreated = await createWorkExperience(userId, workExperienceList);
+    if (workExperienceCreated) {
+      res
+        .status(200)
+        .json({ message: "Work experience added successfully", workExperienceCreated });
+    }
+    else {
+      res
+        .status(400)
+        .json({ message: "Adding work experience failed" });
+}
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+})
+
+router.route('/service-provider/profile/about-me').patch(async (req, res) => {
+  try {
+    const { aboutMe, userId } = req.body;
+    console.log(req.body);
+    if (!userId || !aboutMe) {
+      return res.status(400).json({ message: 'User ID and About Me text are required.' });
+    }
+    const updatedAboutMeField = await updateAboutMeFieldByUserId(aboutMe, userId);
+    if (updatedAboutMeField) {
+      return res.status(200).json({ message: 'About Me updated successfully.', aboutMe: updatedAboutMeField.aboutMeSummary });
+    } else {
+      return res.status(404).json({ message: 'Service provider not found.' });
+    }
+  }
+  catch (error) {
+    console.error('Error updating About Me:', error);
+    return res.status(500).json({ message: 'An error occurred while updating About Me.' });
+  }
+});
+
+router.route('/service-provider/profile/skills').patch(async (req, res) => {
+  try {
+    const { skills, userId } = req.body;
+    const updatedSkills = await updateSkillsByUserId(skills, userId);
+    console.log("Backend updated skills: ", updatedSkills);
+    if (updatedSkills) {
+      return res.status(200).json({ message: 'Skills updated successfully.', skills: updatedSkills.skills });
+    } else {
+      return res.status(404).json({ message: 'Service provider not found.' });
+    }
+  }
+  catch (error) {
+    console.error('Error updating skills:', error);
+    return res.status(500).json({ message: 'An error occurred while updating skills.' });
+  }
+});
 
 syncModels().then(() => {
   app.listen(port, () => {

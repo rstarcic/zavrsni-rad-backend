@@ -62,7 +62,7 @@ const ServiceProvider = sequelize.define(
             allowNull: true,
         },
         skills: {
-            type: DataTypes.STRING,
+            type: DataTypes.JSON,
             allowNull: true,
         },
         role: {
