@@ -3,9 +3,9 @@ import cors from "cors";
 import { syncModels } from "./models/index.js";
 import { registerUser } from "./handlers/registerUser.js";
 import { checkCredentials } from "./handlers/loginUser.js";
-import { updateDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId } from "./handlers/profileHandler.js";
+import { updateDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId, fetchAboutMeText, fetchSkills } from "./handlers/profileHandler.js";
 import { createEducation, fetchEducation } from "./handlers/educationHandler.js";
-import { createWorkExperience } from "./handlers/workExperienceHandler.js";
+import { createWorkExperience, fetchWorkExperience } from "./handlers/workExperienceHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -209,11 +209,11 @@ router.route('/service-provider/profile/:userId').get(async (req, res) => {
   res.json({ photoUrl });
 });
 
-
 router.route('/service-provider/profile/education').post(async (req, res) => {
   try {
     const { educationList, userId } = req.body;
     const educationCreated = await createEducation(userId, educationList);
+    console.log("educationCreated", educationCreated)
     if (educationCreated) {
       res
         .status(200)
@@ -253,6 +253,7 @@ router.route('/service-provider/profile/work-experience').post(async (req, res) 
   try {
     const { workExperienceList, userId } = req.body;
     const workExperienceCreated = await createWorkExperience(userId, workExperienceList);
+    console.log("workExperienceCreated", workExperienceCreated);
     if (workExperienceCreated) {
       res
         .status(200)
@@ -262,6 +263,25 @@ router.route('/service-provider/profile/work-experience').post(async (req, res) 
       res
         .status(400)
         .json({ message: "Adding work experience failed" });
+}
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+})
+
+router.route('/service-provider/profile/work-experience/:userId').get(async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const workExperienceFetched = await fetchWorkExperience(userId);
+    if (workExperienceFetched) {
+      res
+        .status(200)
+        .json({ message: "Work experience fetched successfully", workExperienceFetched });
+    }
+    else {
+      res
+        .status(400)
+        .json({ message: "Fetching work experience failed" });
 }
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -288,6 +308,26 @@ router.route('/service-provider/profile/about-me').patch(async (req, res) => {
   }
 });
 
+router.route('/service-provider/profile/about-me/:userId').get(async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const aboutMeTextFetched = await fetchAboutMeText(userId);
+    console.log(aboutMeTextFetched);
+    if (aboutMeTextFetched) {
+      res
+        .status(200)
+        .json({ message: "About me text fetched successfully", aboutMeTextFetched });
+    }
+    else {
+      res
+        .status(400)
+        .json({ message: "Fetching about me text failed" });
+}
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+})
+
 router.route('/service-provider/profile/skills').patch(async (req, res) => {
   try {
     const { skills, userId } = req.body;
@@ -304,6 +344,26 @@ router.route('/service-provider/profile/skills').patch(async (req, res) => {
     return res.status(500).json({ message: 'An error occurred while updating skills.' });
   }
 });
+
+router.route('/service-provider/profile/skills/:userId').get(async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const skillsFetched = await fetchSkills(userId);
+    console.log(skillsFetched);
+    if (skillsFetched) {
+      res
+        .status(200)
+        .json({ message: "Skills fetched successfully", skillsFetched });
+    }
+    else {
+      res
+        .status(400)
+        .json({ message: "Fetching skills failed" });
+}
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+})
 
 syncModels().then(() => {
   app.listen(port, () => {

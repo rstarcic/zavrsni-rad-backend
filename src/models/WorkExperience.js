@@ -11,11 +11,11 @@ const WorkExperience = sequelize.define('WorkExperience', {
         allowNull: false,
     },
     startDate: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATEONLY,
         allowNull: false,
     },
     endDate: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATEONLY,
         allowNull: false,
     },
     serviceProviderId: {

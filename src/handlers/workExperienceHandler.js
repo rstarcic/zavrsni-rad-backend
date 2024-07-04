@@ -7,6 +7,7 @@ async function createWorkExperience(userId, workExperienceList) {
         ...experience,
         serviceProviderId: userId,
       }));
+      console.log("newWorkExperienceRecords", newWorkExperienceRecords)
       const createdWorkExperienceRecords =
         await WorkExperience.bulkCreate(newWorkExperienceRecords);
       return createdWorkExperienceRecords;
@@ -14,5 +15,16 @@ async function createWorkExperience(userId, workExperienceList) {
       throw new Error(error.message);
     }
 }
+
+async function fetchWorkExperience(userId) {
+  try {
+    const workExperienceData = await WorkExperience.findAll({
+      where: { serviceProviderId: userId },
+    });
+    return workExperienceData;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
   
-export { createWorkExperience }
+export { createWorkExperience, fetchWorkExperience }

@@ -61,4 +61,29 @@ async function updateSkillsByUserId(skills, userId) {
   }
   return null;
 }
-export { updateDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId }
+
+async function fetchAboutMeText() {
+  try {
+    const aboutMeData = await ServiceProvider.findAll({
+      where: { serviceProviderId: userId },
+      attributes: ['aboutMeSummary']
+    });
+    return aboutMeData;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function fetchSkills() {
+  try {
+    const skillsData = await ServiceProvider.findAll({
+      where: { serviceProviderId: userId },
+      attributes: ['skills']
+    });
+    return skillsData;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+export { updateDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId, fetchAboutMeText, fetchSkills }

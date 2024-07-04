@@ -10,12 +10,12 @@ const Education = sequelize.define('Education', {
         type: DataTypes.STRING,
         allowNull: false,
     },
-    startYear: {
-        type: DataTypes.INTEGER,
+    startDate: {
+        type: DataTypes.DATEONLY,
         allowNull: false,
     },
-    endYear: {
-        type: DataTypes.INTEGER,
+    endDate: {
+        type: DataTypes.DATEONLY,
         allowNull: false,
     },
     serviceProviderId: {

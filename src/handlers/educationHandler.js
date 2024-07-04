@@ -7,6 +7,7 @@ async function createEducation(userId, educationList) {
       ...education,
       serviceProviderId: userId,
     }));
+    console.log("newEducationRecords", newEducationRecords);
     const createdEducationRecords =
       await Education.bulkCreate(newEducationRecords);
     return createdEducationRecords;
