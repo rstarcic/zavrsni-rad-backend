@@ -19,18 +19,19 @@ async function registerUser(userData, model) {
     if (model === ServiceProvider) {
       user = await ServiceProvider.create(userData);
     } else if (model === Client) {
-      user = await Client.create(userData);
-    } else {
+      user = await Client.create(userData, null);
+    }
+    else {
       throw new Error('Invalid model provided.');
     }
-
+    console.log(user);
     if (user.dataValues) {
-      return _excludeProperties(user.dataValues, 'password');
+       return _excludeProperties(user.dataValues, 'password');
     } else {
       throw new Error('User not created.');
     }
   } catch (error) {
-    throw new Error('Error in user registration: ' + error.message);
+    throw new Error('Error in user registration: ' + error);
   }
 }
 

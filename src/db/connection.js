@@ -1,6 +1,9 @@
 import Sequelize from 'sequelize';
 import dotenv from 'dotenv';
-dotenv.config({ path: '../.env' }); 
+import path from 'path';
+
+const __dirname = path.resolve();
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 console.log('Database Configuration connection.js:', {
   database: process.env.DB_DATABASE,

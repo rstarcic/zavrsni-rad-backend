@@ -1,6 +1,7 @@
 import ServiceProvider from "../models/ServiceProvider.js";
+import Client from "../models/Client.js";
 
-async function updateDataByUserId(userData) {
+async function updateServiceProviderDataByUserId(userData) {
     try {
         console.log(userData);
     const user = await ServiceProvider.findByPk(userData.userId);
@@ -86,4 +87,20 @@ async function fetchSkills() {
   }
 }
 
-export { updateDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId, fetchAboutMeText, fetchSkills }
+async function updateClientDataByUserId(clientData) {
+  try {
+    const clientInstance = await Client.findOne({ where: { id: clientData.id } });
+    if (!clientInstance) {
+      throw new Error('Client not found');
+    }
+    Object.assign(clientInstance, clientData);
+    await clientInstance.save();
+    const updatedUser = clientInstance.get({ plain: true });
+    return updatedUser;
+  } catch (error) {
+    console.error('Error updating client data:', error);
+    throw new Error(error.message);
+  }
+}
+
+export { updateServiceProviderDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId, fetchAboutMeText, fetchSkills, updateClientDataByUserId }

@@ -73,7 +73,6 @@ const ServiceProvider = sequelize.define(
         profileImage: {
             type: DataTypes.STRING,
             allowNull: true,
-            defaultValue: '',
         }
     });
 

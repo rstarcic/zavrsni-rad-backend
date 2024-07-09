@@ -68,7 +68,11 @@ const Client = sequelize.define(
     type: {
       type: DataTypes.ENUM("individual", "business"),
       allowNull: false,
-      },
+    },
+    profileImage: {
+      type: DataTypes.STRING,
+      allowNull: true,
+  },
       role: {
         type: DataTypes.STRING,
         allowNull: false,

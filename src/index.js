@@ -3,9 +3,11 @@ import cors from "cors";
 import { syncModels } from "./models/index.js";
 import { registerUser } from "./handlers/registerUser.js";
 import { checkCredentials } from "./handlers/loginUser.js";
-import { updateDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId, fetchAboutMeText, fetchSkills } from "./handlers/profileHandler.js";
+import { updateServiceProviderDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId, fetchAboutMeText, fetchSkills } from "./handlers/profileHandler.js";
 import { createEducation, fetchEducation } from "./handlers/educationHandler.js";
 import { createWorkExperience, fetchWorkExperience } from "./handlers/workExperienceHandler.js";
+import { updateClientDataByUserId } from "./handlers/profileHandler.js";
+import { fetchClientDataById, fetchServiceProviderById } from "./handlers/userHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -177,9 +179,9 @@ router.route('/service-provider/profile').patch(async (req, res) => {
   try {
     const userData = req.body;
     console.log(userData);
-    const userDataUpdated = await updateDataByUserId(userData);
+    const userDataUpdated = await updateServiceProviderDataByUserId(userData);
     if (userDataUpdated) {
-      res.status(200).send({ message: 'Profile updated successfully', data: userDataUpdated });
+      res.status(200).send({ message: 'Profile updated successfully', userDataUpdated });
     }
     else {
       res.status(400).send({ message: ' Failed to update profile.' });
@@ -198,6 +200,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use('/uploads', express.static(path.join(__dirname, './public/uploads')));
 
+
+router.route("/service-provider/:userId").get(async (req, res) => {
+  try {
+    const userDataFetched = await fetchServiceProviderById(req.params.userId);
+    if (userDataFetched) {
+      res.status(200).json({ message: "User data successfully fetched", userDataFetched });
+    } else {
+      res.status(404).send("User not found");
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+});
+/* 
 router.route('/service-provider/profile/:userId').get(async (req, res) => {
   const user = await ServiceProvider.findByPk(req.params.userId);
   if (!user || !user.profileImage) {
@@ -208,7 +225,7 @@ router.route('/service-provider/profile/:userId').get(async (req, res) => {
     : '';
   res.json({ photoUrl });
 });
-
+*/
 router.route('/service-provider/profile/education').post(async (req, res) => {
   try {
     const { educationList, userId } = req.body;
@@ -364,6 +381,42 @@ router.route('/service-provider/profile/skills/:userId').get(async (req, res) =>
     res.status(500).json({ success: false, message: error.message });
   }
 })
+
+router.route("/client/:userId").get(async (req, res) => {
+  try {
+    const userDataFetched = await fetchClientDataById(req.params.userId);
+    if (userDataFetched) {
+      res.status(200).json({ message: "User data successfully fetched", userDataFetched });
+    } else {
+      res.status(404).send("User not found");
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+});
+
+router.route("/client/profile").patch(upload.single('file'), async (req, res) => {
+  try {
+    const userData = req.body;
+    if (req.file) {
+      userData.profileImage = `/uploads/${req.file.filename}`;
+    }
+    const userDataUpdated = await updateClientDataByUserId(userData);
+    if (userDataUpdated) {
+      res.status(200).send({ message: "Profile updated successfully", userDataUpdated });
+    } else {
+      res.status(400).send({ message: "Failed to update profile." });
+    }
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error. Failed to update client profile.",
+    });
+  }
+});
+
 
 syncModels().then(() => {
   app.listen(port, () => {

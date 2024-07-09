@@ -13,8 +13,9 @@ function _excludeProperties(obj, excludedProps) {
 
 async function checkCredentials(email, password) {
   try {
-    let user = await Client.findOne({ where: { email: email } });
-    if (user) {
+    let userInstance = await Client.findOne({ where: { email: email } });
+    if (userInstance) {
+      let user = userInstance.get({ plain: true });
       const isPasswordMatch = await _comparePasswords(password, user.password);
       if (isPasswordMatch) {
         return _excludeProperties(user, "password");
@@ -23,8 +24,9 @@ async function checkCredentials(email, password) {
       }
     }
 
-    user = await ServiceProvider.findOne({ where: { email: email } });
-    if (user) {
+    userInstance = await ServiceProvider.findOne({ where: { email: email } });
+    if (userInstance) {
+      let user = userInstance.get({ plain: true });
       const isPasswordMatch = await _comparePasswords(password, user.password);
       if (isPasswordMatch) {
         return _excludeProperties(user, "password");
