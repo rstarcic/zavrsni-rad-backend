@@ -1,24 +1,32 @@
 import Education from "../models/Education.js";
 
-async function createEducation(userId, educationList) {
+async function updateOrCreateEducation(userId, education) {
   try {
-    await Education.destroy({ where: { serviceProviderId: userId } });
-    const newEducationRecords = educationList.map((education) => ({
-      ...education,
-      serviceProviderId: userId,
-    }));
-    console.log("newEducationRecords", newEducationRecords);
-    const createdEducationRecords =
-      await Education.bulkCreate(newEducationRecords);
-    return createdEducationRecords;
+    const existingRecord = await Education.findOne({
+      where: {
+        serviceProviderId: userId,
+      }
+    })
+    let updatedEducationRecord;
+    if (existingRecord) {
+      updatedEducationRecord = await existingRecord.update({
+        ...education, serviceProviderId: userId
+      })
+    } else {
+      updatedEducationRecord =  await Education.create({
+        ...education,
+        serviceProviderId: userId
+      });
+    }
+    return updatedEducationRecord;
   } catch (error) {
     throw new Error(error.message);
   }
 }
 
-async function fetchEducation(userId) {
+async function fetchEducationByUserId(userId) {
   try {
-    const educationData = await Education.findAll({
+    const educationData = await Education.findOne({
       where: { serviceProviderId: userId },
     });
     return educationData;
@@ -27,4 +35,5 @@ async function fetchEducation(userId) {
   }
 }
 
-export { createEducation, fetchEducation };
+
+export { updateOrCreateEducation, fetchEducationByUserId };

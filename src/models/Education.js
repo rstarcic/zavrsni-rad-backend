@@ -4,19 +4,19 @@ import sequelize from '../db/connection.js';
 const Education = sequelize.define('Education', {
     institution: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
     },
     degree: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
     },
     startDate: {
         type: DataTypes.DATEONLY,
-        allowNull: false,
+        allowNull: true,
     },
     endDate: {
         type: DataTypes.DATEONLY,
-        allowNull: false,
+        allowNull: true,
     },
     serviceProviderId: {
         type: DataTypes.INTEGER,

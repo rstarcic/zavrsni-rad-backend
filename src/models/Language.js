@@ -4,11 +4,11 @@ import sequelize from '../db/connection.js';
 const Language = sequelize.define('Language', {
     language: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
     },
     proficiency: {
         type: DataTypes.STRING, 
-        allowNull: false,
+        allowNull: true,
     },
     serviceProviderId: {
         type: DataTypes.INTEGER,

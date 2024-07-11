@@ -1,12 +1,14 @@
 import ServiceProvider from "../models/ServiceProvider.js";
 import Client from "../models/Client.js";
 
-async function updateServiceProviderDataByUserId(userData) {
+async function updateServiceProviderDataByUserId(userData, userId) {
     try {
-        console.log(userData);
-    const user = await ServiceProvider.findByPk(userData.userId);
+        console.log(userData.skills);
+    const user = await ServiceProvider.findByPk(userId);
     if (user) {
       const {
+        aboutMeSummary,
+        profileImage,
         firstName,
         lastName,
         gender,
@@ -18,8 +20,11 @@ async function updateServiceProviderDataByUserId(userData) {
         postalCode,
         documentType,
         documentNumber,
+        skills
       } = userData;
 
+      if (aboutMeSummary) user.aboutMeSummary = aboutMeSummary;
+      if (profileImage) user.profileImage = profileImage;
       if (firstName) user.firstName = firstName;
       if (lastName) user.lastName = lastName;
       if (gender) user.gender = gender;
@@ -31,6 +36,7 @@ async function updateServiceProviderDataByUserId(userData) {
       if (postalCode) user.postalCode = postalCode;
       if (documentType) user.documentType = documentType;
       if (documentNumber) user.documentNumber = documentNumber;
+      if (skills) user.skills = userData.skills;
 
       await user.save();
       return user;

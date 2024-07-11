@@ -4,19 +4,19 @@ import sequelize from '../db/connection.js';
 const WorkExperience = sequelize.define('WorkExperience', {
     companyName: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
     },
     jobTitle: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
     },
     startDate: {
         type: DataTypes.DATEONLY,
-        allowNull: false,
+        allowNull: true,
     },
     endDate: {
         type: DataTypes.DATEONLY,
-        allowNull: false,
+        allowNull: true,
     },
     serviceProviderId: {
         type: DataTypes.INTEGER,

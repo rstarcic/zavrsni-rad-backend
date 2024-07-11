@@ -1,24 +1,32 @@
 import WorkExperience from "../models/WorkExperience.js";
 
-async function createWorkExperience(userId, workExperienceList) {
-    try {
-      await WorkExperience.destroy({ where: { serviceProviderId: userId } });
-      const newWorkExperienceRecords = workExperienceList.map((experience) => ({
-        ...experience,
+async function updateOrCreateWorkExperience(userId, workExperience) {
+  try {
+    const existingRecord = await WorkExperience.findOne({
+      where: {
         serviceProviderId: userId,
-      }));
-      console.log("newWorkExperienceRecords", newWorkExperienceRecords)
-      const createdWorkExperienceRecords =
-        await WorkExperience.bulkCreate(newWorkExperienceRecords);
-      return createdWorkExperienceRecords;
-    } catch (error) {
-      throw new Error(error.message);
+      }
+    })
+    let updatedWorkExperienceRecord;
+    if (existingRecord) {
+      updatedWorkExperienceRecord = await existingRecord.update({
+        ...workExperience, serviceProviderId: userId
+      })
+    } else {
+      updatedWorkExperienceRecord =  await WorkExperience.create({
+        ...workExperience,
+        serviceProviderId: userId
+      });
     }
+    return updatedWorkExperienceRecord;
+  } catch (error) {
+    throw new Error(error.message);
+  }
 }
 
-async function fetchWorkExperience(userId) {
+async function fetchWorkExperienceByUserId(userId) {
   try {
-    const workExperienceData = await WorkExperience.findAll({
+    const workExperienceData = await WorkExperience.findOne({
       where: { serviceProviderId: userId },
     });
     return workExperienceData;
@@ -27,4 +35,4 @@ async function fetchWorkExperience(userId) {
   }
 }
   
-export { createWorkExperience, fetchWorkExperience }
+export { updateOrCreateWorkExperience, fetchWorkExperienceByUserId }

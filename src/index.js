@@ -4,9 +4,10 @@ import { syncModels } from "./models/index.js";
 import { registerUser } from "./handlers/registerUser.js";
 import { checkCredentials } from "./handlers/loginUser.js";
 import { updateServiceProviderDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId, fetchAboutMeText, fetchSkills } from "./handlers/profileHandler.js";
-import { createEducation, fetchEducation } from "./handlers/educationHandler.js";
-import { createWorkExperience, fetchWorkExperience } from "./handlers/workExperienceHandler.js";
+import { updateOrCreateEducation, fetchEducationByUserId } from "./handlers/educationHandler.js";
+import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./handlers/workExperienceHandler.js";
 import { updateClientDataByUserId } from "./handlers/profileHandler.js";
+import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
 import { fetchClientDataById, fetchServiceProviderById } from "./handlers/userHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
@@ -16,6 +17,7 @@ import path from "path";
 import { fileURLToPath } from 'url';
 import multer from "multer";
 import dotenv from "dotenv";
+import WorkExperience from "./models/WorkExperience.js";
 dotenv.config({ path: "../.env" });
 
 const app = express();
@@ -177,17 +179,35 @@ router.route('/service-provider/profile').post( upload.single('file'), async (re
 
 router.route('/service-provider/profile').patch(async (req, res) => {
   try {
-    const userData = req.body;
-    console.log(userData);
-    const userDataUpdated = await updateServiceProviderDataByUserId(userData);
-    if (userDataUpdated) {
-      res.status(200).send({ message: 'Profile updated successfully', userDataUpdated });
+    const { user, education, workExperience, language, userId } = req.body;
+    if (!user || !userId) {
+      return res.status(400).json({ message: 'Missing user or userId in request body' });
     }
-    else {
-      res.status(400).send({ message: ' Failed to update profile.' });
+    let updatedUser;
+    let updatedEducation;
+    let updatedWorkExperience;
+    let updatedLanguage;
+    if (user) {
+      updatedUser = await updateServiceProviderDataByUserId(user, userId);
     }
-  }
-    catch (error) {
+    if (education && education.institution && education.degree && education.startDate && education.endDate) {
+      updatedEducation = await updateOrCreateEducation(userId, education);
+    }
+    if (workExperience && workExperience.companyName && workExperience.jobTitle && workExperience.startDate && workExperience.endDate) {
+      updatedWorkExperience = await updateOrCreateWorkExperience(userId, workExperience);
+    }
+    if (language && language.name ) {
+      updatedLanguage = await updateOrCreateLanguage(userId, language);
+    }
+
+    res.status(200).send({
+      message: 'Profile updated successfully',
+      user: updatedUser,
+      education: updatedEducation,
+      workExperience: updatedWorkExperience,
+      language: updatedLanguage
+    });
+  } catch (error) {
     console.error(error);
     res.status(500).json({
       success: false,
@@ -203,13 +223,18 @@ app.use('/uploads', express.static(path.join(__dirname, './public/uploads')));
 
 router.route("/service-provider/:userId").get(async (req, res) => {
   try {
-    const userDataFetched = await fetchServiceProviderById(req.params.userId);
-    if (userDataFetched) {
-      res.status(200).json({ message: "User data successfully fetched", userDataFetched });
-    } else {
-      res.status(404).send("User not found");
-    }
-  } catch (error) {
+    const userId = req.params.userId;
+    const user = await fetchServiceProviderById(userId);
+    const education = await fetchEducationByUserId(userId);
+    const workExperience = await fetchWorkExperienceByUserId(userId);
+    const languages = await fetchLanguagesByUserId(userId);
+    res.status(200).json({
+      user,
+      education,
+      workExperience,
+      languages
+    })
+     } catch (error) {
     console.error(error);
     res.status(500).send(error.message);
   }
