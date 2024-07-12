@@ -3,7 +3,7 @@ import cors from "cors";
 import { syncModels } from "./models/index.js";
 import { registerUser } from "./handlers/registerUser.js";
 import { checkCredentials } from "./handlers/loginUser.js";
-import { updateServiceProviderDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId, fetchAboutMeText, fetchSkills } from "./handlers/profileHandler.js";
+import { updateServiceProviderDataByUserId, fetchProfileImage } from "./handlers/profileHandler.js";
 import { updateOrCreateEducation, fetchEducationByUserId } from "./handlers/educationHandler.js";
 import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./handlers/workExperienceHandler.js";
 import { updateClientDataByUserId } from "./handlers/profileHandler.js";
@@ -17,7 +17,6 @@ import path from "path";
 import { fileURLToPath } from 'url';
 import multer from "multer";
 import dotenv from "dotenv";
-import WorkExperience from "./models/WorkExperience.js";
 dotenv.config({ path: "../.env" });
 
 const app = express();
@@ -27,6 +26,7 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 app.use("/api", router);
+
 
 router.route("/").get((req, res) => {
   res.send("Welcome to the Jobify home page!");
@@ -146,18 +146,36 @@ router.route("/auth/login").post(async (req, res) => {
 
 
 // multer
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+console.log("dirname",__dirname);
+app.use('/public', express.static(path.join(__dirname, '..', 'public')));
+
 const storage = multer.diskStorage({
-  destination: function(req, file, cb) {
-      cb(null, 'public/uploads/')
+  destination: function (req, file, cb) {
+    const uploadsDir = path.join(__dirname, '..', 'public', 'users-avatar');
+    cb(null, uploadsDir);
   },
-  filename: function(req, file, cb) {
-      cb(null, `${Date.now()}-${file.originalname}`)
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix);
   }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5000000 
+  },
+  fileFilter: (req, file, callback) => {
+    if (!file.originalname.match(/\.(png|jpeg|jpg)$/)) {
+      return callback(new Error('Please upload a Picture (PNG, JPEG, or JPG)'));
+    }
+    callback(null, true);
+  }
+});
 
-router.route('/service-provider/profile').post( upload.single('file'), async (req, res) => {
+router.route('/service-provider/profile').post( upload.single('profileImage'), async (req, res) => {
   try {
     const userId = req.body.userId;
     console.log(userId);
@@ -165,9 +183,12 @@ router.route('/service-provider/profile').post( upload.single('file'), async (re
     console.log(req.body);
     console.log(req.file); 
       if (user) {
-          user.profileImage = `/uploads/${req.file.filename}`;
-          await user.save();
-          res.send({ message: 'Profile photo updated successfully', data: user });
+          user.profileImage =  `public/users-avatar/${req.file.filename}`;;
+        await user.save();
+        const photoUrl = user.profileImage
+    ?  `http://localhost:3001/public/users-avatar/${req.file.filename}`
+    : '';
+          res.send({ message: 'Profile photo updated successfully', photoUrl });
       } else {
           res.status(404).send({ message: 'User not found' });
       }
@@ -196,7 +217,8 @@ router.route('/service-provider/profile').patch(async (req, res) => {
     if (workExperience && workExperience.companyName && workExperience.jobTitle && workExperience.startDate && workExperience.endDate) {
       updatedWorkExperience = await updateOrCreateWorkExperience(userId, workExperience);
     }
-    if (language && language.name ) {
+    console.log(language)
+    if (language) {
       updatedLanguage = await updateOrCreateLanguage(userId, language);
     }
 
@@ -216,11 +238,6 @@ router.route('/service-provider/profile').patch(async (req, res) => {
   }
 })
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-app.use('/uploads', express.static(path.join(__dirname, './public/uploads')));
-
-
 router.route("/service-provider/:userId").get(async (req, res) => {
   try {
     const userId = req.params.userId;
@@ -239,173 +256,24 @@ router.route("/service-provider/:userId").get(async (req, res) => {
     res.status(500).send(error.message);
   }
 });
-/* 
-router.route('/service-provider/profile/:userId').get(async (req, res) => {
-  const user = await ServiceProvider.findByPk(req.params.userId);
-  if (!user || !user.profileImage) {
+
+router.route('service-provider/photo/:userId').get(async (req, res) => {
+  try {
+    const userImage = await fetchProfileImage(req.params.userId);
+    if (!userImage) {
       return res.status(404).send('Photo not found.');
-  }
-  const photoUrl = user.profileImage
-    ? `http://localhost:3001${user.profileImage}`
-    : '';
-  res.json({ photoUrl });
+    }
+    else {
+      const photoUrl = user.profileImage
+        ? `http://localhost:3001${user.profileImage}`
+        : '';
+      res.json({ photoUrl });
+    }
+  } catch (error) {
+      console.error('Error fetching user image:', error);
+      return res.status(500).send('Error fetching photo.');
+    }
 });
-*/
-router.route('/service-provider/profile/education').post(async (req, res) => {
-  try {
-    const { educationList, userId } = req.body;
-    const educationCreated = await createEducation(userId, educationList);
-    console.log("educationCreated", educationCreated)
-    if (educationCreated) {
-      res
-        .status(200)
-        .json({ message: "Education added successfully", educationCreated });
-    }
-    else {
-      res
-        .status(400)
-        .json({ message: "Adding education failed" });
-}
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-})
-
-router.route('/service-provider/profile/education/:userId').get(async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const educationFetched = await fetchEducation(userId);
-    console.log(educationFetched);
-    if (educationFetched) {
-      res
-        .status(200)
-        .json({ message: "Education fetched successfully", educationFetched });
-    }
-    else {
-      res
-        .status(400)
-        .json({ message: "Fetching education failed" });
-}
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-})
-
-router.route('/service-provider/profile/work-experience').post(async (req, res) => {
-  try {
-    const { workExperienceList, userId } = req.body;
-    const workExperienceCreated = await createWorkExperience(userId, workExperienceList);
-    console.log("workExperienceCreated", workExperienceCreated);
-    if (workExperienceCreated) {
-      res
-        .status(200)
-        .json({ message: "Work experience added successfully", workExperienceCreated });
-    }
-    else {
-      res
-        .status(400)
-        .json({ message: "Adding work experience failed" });
-}
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-})
-
-router.route('/service-provider/profile/work-experience/:userId').get(async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const workExperienceFetched = await fetchWorkExperience(userId);
-    if (workExperienceFetched) {
-      res
-        .status(200)
-        .json({ message: "Work experience fetched successfully", workExperienceFetched });
-    }
-    else {
-      res
-        .status(400)
-        .json({ message: "Fetching work experience failed" });
-}
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-})
-
-router.route('/service-provider/profile/about-me').patch(async (req, res) => {
-  try {
-    const { aboutMe, userId } = req.body;
-    console.log(req.body);
-    if (!userId || !aboutMe) {
-      return res.status(400).json({ message: 'User ID and About Me text are required.' });
-    }
-    const updatedAboutMeField = await updateAboutMeFieldByUserId(aboutMe, userId);
-    if (updatedAboutMeField) {
-      return res.status(200).json({ message: 'About Me updated successfully.', aboutMe: updatedAboutMeField.aboutMeSummary });
-    } else {
-      return res.status(404).json({ message: 'Service provider not found.' });
-    }
-  }
-  catch (error) {
-    console.error('Error updating About Me:', error);
-    return res.status(500).json({ message: 'An error occurred while updating About Me.' });
-  }
-});
-
-router.route('/service-provider/profile/about-me/:userId').get(async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const aboutMeTextFetched = await fetchAboutMeText(userId);
-    console.log(aboutMeTextFetched);
-    if (aboutMeTextFetched) {
-      res
-        .status(200)
-        .json({ message: "About me text fetched successfully", aboutMeTextFetched });
-    }
-    else {
-      res
-        .status(400)
-        .json({ message: "Fetching about me text failed" });
-}
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-})
-
-router.route('/service-provider/profile/skills').patch(async (req, res) => {
-  try {
-    const { skills, userId } = req.body;
-    const updatedSkills = await updateSkillsByUserId(skills, userId);
-    console.log("Backend updated skills: ", updatedSkills);
-    if (updatedSkills) {
-      return res.status(200).json({ message: 'Skills updated successfully.', skills: updatedSkills.skills });
-    } else {
-      return res.status(404).json({ message: 'Service provider not found.' });
-    }
-  }
-  catch (error) {
-    console.error('Error updating skills:', error);
-    return res.status(500).json({ message: 'An error occurred while updating skills.' });
-  }
-});
-
-router.route('/service-provider/profile/skills/:userId').get(async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const skillsFetched = await fetchSkills(userId);
-    console.log(skillsFetched);
-    if (skillsFetched) {
-      res
-        .status(200)
-        .json({ message: "Skills fetched successfully", skillsFetched });
-    }
-    else {
-      res
-        .status(400)
-        .json({ message: "Fetching skills failed" });
-}
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-})
 
 router.route("/client/:userId").get(async (req, res) => {
   try {

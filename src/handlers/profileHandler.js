@@ -48,46 +48,13 @@ async function updateServiceProviderDataByUserId(userData, userId) {
   }
 }
 
-async function updateAboutMeFieldByUserId(aboutMe, userId) {
-  const user = await ServiceProvider.findByPk(userId);
-  if (user) {
-    user.aboutMeSummary = aboutMe;
-    user.save();
-    return user;
-  }
-  return null;
-}
-
-async function updateSkillsByUserId(skills, userId) {
-  const user = await ServiceProvider.findByPk(userId);
-  console.log(user)
-  if (user) {
-    user.skills = skills;
-    user.save();
-    return user;
-  }
-  return null;
-}
-
-async function fetchAboutMeText() {
+async function fetchProfileImage(userId) {
   try {
-    const aboutMeData = await ServiceProvider.findAll({
+    const profileImage = await ServiceProvider.findOne({
       where: { serviceProviderId: userId },
-      attributes: ['aboutMeSummary']
+      attributes: ['profileImage']
     });
-    return aboutMeData;
-  } catch (error) {
-    throw new Error(error.message);
-  }
-}
-
-async function fetchSkills() {
-  try {
-    const skillsData = await ServiceProvider.findAll({
-      where: { serviceProviderId: userId },
-      attributes: ['skills']
-    });
-    return skillsData;
+    return profileImage;
   } catch (error) {
     throw new Error(error.message);
   }
@@ -109,4 +76,4 @@ async function updateClientDataByUserId(clientData) {
   }
 }
 
-export { updateServiceProviderDataByUserId, updateAboutMeFieldByUserId, updateSkillsByUserId, fetchAboutMeText, fetchSkills, updateClientDataByUserId }
+export { updateServiceProviderDataByUserId, fetchProfileImage, updateClientDataByUserId }
