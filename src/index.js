@@ -22,10 +22,25 @@ const app = express();
 const router = express.Router();
 const port = process.env.PORT || 3001;
 
-app.use(cors());
 app.use(express.json());
-app.use("/api", router);
 
+const corsOptions = {
+  origin: 'http://localhost:8080' || '*', 
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Authorization'],
+  credentials: true 
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors()); 
+app.use("/api", router);
+app.use(authenticateToken)
+
+app.use((req, res, next) => {
+  console.log('Authorization Header:', req.headers.authorization);
+  next();
+});
 
 router.route("/").get((req, res) => {
   res.send("Welcome to the Jobify home page!");
@@ -174,7 +189,7 @@ const upload = multer({
   }
 });
 
-router.route('/service-provider/profile/upload-photo').post( upload.single('profileImage'), async (req, res) => {
+router.route('/service-provider/profile/upload-photo').post(authenticateToken, upload.single('profileImage'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).send({ message: 'No file uploaded.' });
@@ -187,7 +202,7 @@ router.route('/service-provider/profile/upload-photo').post( upload.single('prof
   }
 });
 
-router.route('/service-provider/profile').patch(async (req, res) => {
+router.route('/service-provider/profile').patch(authenticateToken, async (req, res) => {
   try {
     const { user, education, workExperience, language, userId } = req.body;
     if (!user || !userId) {
@@ -227,7 +242,7 @@ router.route('/service-provider/profile').patch(async (req, res) => {
   }
 })
 
-router.route("/service-provider/:userId").get(async (req, res) => {
+router.route("/service-provider/:userId").get(authenticateToken, async (req, res) => {
   try {
     const userId = req.params.userId;
     const user = await fetchServiceProviderById(userId);
@@ -246,7 +261,7 @@ router.route("/service-provider/:userId").get(async (req, res) => {
   }
 });
 
-router.route('/service-provider/photo/:userId').get(async (req, res) => {
+router.route('/service-provider/photo/:userId').get(authenticateToken, async (req, res) => {
   try {
     const userImage = await fetchServiceProviderProfileImage(req.params.userId);
     if (!userImage) {
@@ -265,7 +280,7 @@ router.route('/service-provider/photo/:userId').get(async (req, res) => {
 });
 
 
-router.route('/client/profile/upload-photo').post(upload.single('profileImage'), async (req, res) => {
+router.route('/client/profile/upload-photo').post(authenticateToken, upload.single('profileImage'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).send({ message: 'No file uploaded.' });
@@ -278,7 +293,7 @@ router.route('/client/profile/upload-photo').post(upload.single('profileImage'),
   }
 });
 
-router.route("/client/:userId").get(async (req, res) => {
+router.route("/client/:userId").get(authenticateToken, async (req, res) => {
   try {
     const userDataFetched = await fetchClientDataById(req.params.userId);
     if (userDataFetched) {
@@ -292,7 +307,7 @@ router.route("/client/:userId").get(async (req, res) => {
   }
 });
 
-router.route('/client/photo/:userId').get(async (req, res) => {
+router.route('/client/photo/:userId').get(authenticateToken, async (req, res) => {
   try {
     const userImage = await fetchClientProfileImage(req.params.userId);
     if (!userImage) {
@@ -310,7 +325,7 @@ router.route('/client/photo/:userId').get(async (req, res) => {
     }
 });
 
-router.route("/client/profile").patch(async (req, res) => {
+router.route("/client/profile").patch(authenticateToken, async (req, res) => {
   try {
     const { user, userId} = req.body;
     const userDataUpdated = await updateClientDataByUserId(user, userId);
