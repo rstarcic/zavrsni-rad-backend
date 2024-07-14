@@ -48,7 +48,7 @@ async function updateServiceProviderDataByUserId(userData, userId) {
   }
 }
 
-async function fetchProfileImage(userId) {
+async function fetchServiceProviderProfileImage(userId) {
   try {
     const profileImage = await ServiceProvider.findOne({
       where: { serviceProviderId: userId },
@@ -60,13 +60,13 @@ async function fetchProfileImage(userId) {
   }
 }
 
-async function updateClientDataByUserId(clientData) {
+async function updateClientDataByUserId(clientData, userId) {
   try {
-    const clientInstance = await Client.findOne({ where: { id: clientData.id } });
+    const clientInstance = await Client.findByPk(userId);
     if (!clientInstance) {
       throw new Error('Client not found');
     }
-    Object.assign(clientInstance, clientData);
+   Object.assign(clientInstance, clientData);
     await clientInstance.save();
     const updatedUser = clientInstance.get({ plain: true });
     return updatedUser;
@@ -76,4 +76,16 @@ async function updateClientDataByUserId(clientData) {
   }
 }
 
-export { updateServiceProviderDataByUserId, fetchProfileImage, updateClientDataByUserId }
+async function fetchClientProfileImage(userId) {
+  try {
+    const profileImage = await Client.findOne({
+      where: { id: userId },
+      attributes: ['profileImage']
+    });
+    return profileImage;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+export { updateServiceProviderDataByUserId, fetchServiceProviderProfileImage, updateClientDataByUserId, fetchClientProfileImage }

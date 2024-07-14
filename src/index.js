@@ -3,10 +3,9 @@ import cors from "cors";
 import { syncModels } from "./models/index.js";
 import { registerUser } from "./handlers/registerUser.js";
 import { checkCredentials } from "./handlers/loginUser.js";
-import { updateServiceProviderDataByUserId, fetchProfileImage } from "./handlers/profileHandler.js";
+import { updateServiceProviderDataByUserId, fetchServiceProviderProfileImage, updateClientDataByUserId, fetchClientProfileImage } from "./handlers/profileHandler.js";
 import { updateOrCreateEducation, fetchEducationByUserId } from "./handlers/educationHandler.js";
 import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./handlers/workExperienceHandler.js";
-import { updateClientDataByUserId } from "./handlers/profileHandler.js";
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
 import { fetchClientDataById, fetchServiceProviderById } from "./handlers/userHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
@@ -175,26 +174,16 @@ const upload = multer({
   }
 });
 
-router.route('/service-provider/profile').post( upload.single('profileImage'), async (req, res) => {
+router.route('/service-provider/profile/upload-photo').post( upload.single('profileImage'), async (req, res) => {
   try {
-    const userId = req.body.userId;
-    console.log(userId);
-    const user = await ServiceProvider.findByPk(userId);
-    console.log(req.body);
-    console.log(req.file); 
-      if (user) {
-          user.profileImage =  `public/users-avatar/${req.file.filename}`;;
-        await user.save();
-        const photoUrl = user.profileImage
-    ?  `http://localhost:3001/public/users-avatar/${req.file.filename}`
-    : '';
-          res.send({ message: 'Profile photo updated successfully', photoUrl });
-      } else {
-          res.status(404).send({ message: 'User not found' });
-      }
+    if (!req.file) {
+      return res.status(400).send({ message: 'No file uploaded.' });
+    }
+    const photoUrl = `public/users-avatar/${req.file.filename}`;
+    res.status(200).send({ message: 'Photo uploaded successfully', photoUrl });
   } catch (error) {
-      console.error(error);
-      res.status(500).send({ message: 'Error updating profile photo' });
+    console.error(error);
+    res.status(500).send({ message: 'Error uploading photo' });
   }
 });
 
@@ -257,9 +246,9 @@ router.route("/service-provider/:userId").get(async (req, res) => {
   }
 });
 
-router.route('service-provider/photo/:userId').get(async (req, res) => {
+router.route('/service-provider/photo/:userId').get(async (req, res) => {
   try {
-    const userImage = await fetchProfileImage(req.params.userId);
+    const userImage = await fetchServiceProviderProfileImage(req.params.userId);
     if (!userImage) {
       return res.status(404).send('Photo not found.');
     }
@@ -273,6 +262,20 @@ router.route('service-provider/photo/:userId').get(async (req, res) => {
       console.error('Error fetching user image:', error);
       return res.status(500).send('Error fetching photo.');
     }
+});
+
+
+router.route('/client/profile/upload-photo').post(upload.single('profileImage'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).send({ message: 'No file uploaded.' });
+    }
+    const photoUrl = `public/users-avatar/${req.file.filename}`;
+    res.status(200).send({ message: 'Photo uploaded successfully', photoUrl });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: 'Error uploading photo' });
+  }
 });
 
 router.route("/client/:userId").get(async (req, res) => {
@@ -289,14 +292,30 @@ router.route("/client/:userId").get(async (req, res) => {
   }
 });
 
-router.route("/client/profile").patch(upload.single('file'), async (req, res) => {
+router.route('/client/photo/:userId').get(async (req, res) => {
   try {
-    const userData = req.body;
-    if (req.file) {
-      userData.profileImage = `/uploads/${req.file.filename}`;
+    const userImage = await fetchClientProfileImage(req.params.userId);
+    if (!userImage) {
+      return res.status(404).send('Photo not found.');
     }
-    const userDataUpdated = await updateClientDataByUserId(userData);
+    else {
+      const photoUrl = user.profileImage
+        ? `http://localhost:3001${user.profileImage}`
+        : '';
+      res.json({ photoUrl });
+    }
+  } catch (error) {
+      console.error('Error fetching user image:', error);
+      return res.status(500).send('Error fetching photo.');
+    }
+});
+
+router.route("/client/profile").patch(async (req, res) => {
+  try {
+    const { user, userId} = req.body;
+    const userDataUpdated = await updateClientDataByUserId(user, userId);
     if (userDataUpdated) {
+      console.log(userDataUpdated)
       res.status(200).send({ message: "Profile updated successfully", userDataUpdated });
     } else {
       res.status(400).send({ message: "Failed to update profile." });
@@ -309,6 +328,7 @@ router.route("/client/profile").patch(upload.single('file'), async (req, res) =>
     });
   }
 });
+
 
 
 syncModels().then(() => {
