@@ -51,7 +51,7 @@ const Client = sequelize.define(
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true
+      unique: true,
     },
     password: {
       type: DataTypes.STRING,
@@ -72,12 +72,16 @@ const Client = sequelize.define(
     profileImage: {
       type: DataTypes.STRING,
       allowNull: true,
-  },
-      role: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: 'client',
-      },
+    },
+    role: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "client",
+    },
+    status: {
+      type: DataTypes.STRING,
+      defaultValue: "active",
+    },
   },
   {
     scopes: {
@@ -92,14 +96,7 @@ const Client = sequelize.define(
           type: "business",
         },
         attributes: {
-          exclude: [
-            "firstName",
-            "lastName",
-            "gender",
-            "dateOfBirth",
-            "documentType",
-            "documentNumber",
-          ],
+          exclude: ["firstName", "lastName", "gender", "dateOfBirth", "documentType", "documentNumber"],
         },
       },
     },

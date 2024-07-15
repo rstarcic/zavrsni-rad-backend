@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import Client from "../models/Client.js";
 import ServiceProvider from "../models/ServiceProvider.js";
+import jwt from "jsonwebtoken";
 
 async function _comparePasswords(password, hashPassword) {
   return bcrypt.compareSync(password, hashPassword);
@@ -14,8 +15,12 @@ function _excludeProperties(obj, excludedProps) {
 async function checkCredentials(email, password) {
   try {
     let userInstance = await Client.findOne({ where: { email: email } });
+
     if (userInstance) {
       let user = userInstance.get({ plain: true });
+      if (user.status === 'deactivated') {
+        return { error: 'deactivated', message: 'Your account is deactivated. Do you want to activate it?' };
+      }
       const isPasswordMatch = await _comparePasswords(password, user.password);
       if (isPasswordMatch) {
         return _excludeProperties(user, "password");
@@ -27,6 +32,9 @@ async function checkCredentials(email, password) {
     userInstance = await ServiceProvider.findOne({ where: { email: email } });
     if (userInstance) {
       let user = userInstance.get({ plain: true });
+      if (user.status === 'deactivated') {
+        return { error: 'deactivated', message: 'Your account is deactivated. Do you want to activate it?' };
+      }
       const isPasswordMatch = await _comparePasswords(password, user.password);
       if (isPasswordMatch) {
         return _excludeProperties(user, "password");
@@ -41,4 +49,12 @@ async function checkCredentials(email, password) {
   }
 }
 
-export { checkCredentials };
+function generateToken(user) {
+  const payload = { userId: user.id, role: user.role };
+  if (user.role === "client") {
+    payload.type = user.type;
+  }
+  return jwt.sign(payload, process.env.SECRET_TOKEN, { expiresIn: "1h" });
+}
+
+export { checkCredentials, generateToken };
