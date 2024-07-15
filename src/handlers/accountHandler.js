@@ -70,16 +70,14 @@ async function reactivateAccont(email, password) {
     try {
         let userInstance = await ServiceProvider.findOne({ where: { email } });
         if (!userInstance) {
-            userInstance = await Client.findOne({
-                email: email,
-            });
+            userInstance = await Client.findOne({ where: { email }});
         }
         if (!userInstance) {
-            return res.status(404).json({ message: 'User not found.' });
+            return { message: 'User not found.' };
         }
         const isPasswordMatch = await _comparePasswords(password, userInstance.password);
         if (!isPasswordMatch) {
-            return res.status(401).json({ message: 'Incorrect passwrod. ' });
+            return { message: 'Incorrect passwrod. ' };
         }
         await userInstance.update({ status: 'active' }) 
         userInstance = await userInstance.reload();

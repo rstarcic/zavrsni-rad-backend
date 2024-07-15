@@ -366,6 +366,44 @@ router.route("/client/profile").patch(authenticateToken, async (req, res) => {
   }
 });
 
+router.route("/client/account/password").patch(authenticateToken, async (req, res) => {
+  const { userId, currentPassword, newPassword, confirmedPassword } = req.body;
+  console.log("req.body", req.body);
+  if (newPassword !== confirmedPassword) {
+    return res.status(400).send({ message: "Passwords do not match." });
+  }
+  if (newPassword === currentPassword) {
+    return res.status(400).send({ message: "Cannot update password with same password." });
+  }
+  const passwordUpdated = await checkCurrentAndUpdateNewPassword("Client", userId, currentPassword, newPassword);
+  if (passwordUpdated) {
+    return res.status(201).send({ message: "Password updated successfully." });
+  }
+});
+
+router.route("/client/account").delete(authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const model = req.user.role === "service provider" ? "ServiceProvider" : "Client";
+  const result = await deleteAccount(model, userId);
+  if (result.success) {
+    return res.status(200).send({ message: result.message });
+  } else {
+    return res.status(500).send({ message: result.message });
+  }
+});
+
+router.route("/client/account/deactivate").patch(authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  console.log(userId);
+  const model = req.user.role === "service provider" ? "ServiceProvider" : "Client";
+  const result = await deactivateAccount(model, userId);
+  if (result.success) {
+    return res.status(202).send({ message: result.message });
+  } else {
+    return res.status(500).send({ message: result.message });
+  }
+});
+
 syncModels().then(() => {
   app.listen(port, () => {
     console.log(`Service is running on http://localhost:${port}`);
