@@ -72,6 +72,7 @@ const JobAd = sequelize.define('JobAd', {
     status: {
         type: DataTypes.STRING, // e.g., 'active', 'inactive'
         allowNull: false,
+        defaultValue: "active"
     },
     clientId: {
         type: DataTypes.INTEGER,

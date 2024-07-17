@@ -14,6 +14,7 @@ import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./han
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
 import { fetchClientDataById, fetchServiceProviderById } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
+import { createJobAd } from "./handlers/jobAdHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -402,6 +403,19 @@ router.route("/client/account/deactivate").patch(authenticateToken, async (req, 
   } else {
     return res.status(500).send({ message: result.message });
   }
+});
+
+router.route("/client/jobs").post(authenticateToken, async (req, res) => {
+  const jobAdData  = req.body;
+    const clientId = req.user.userId; 
+    try {
+      const jobCreated = await createJobAd(jobAdData, clientId);
+        console.log("Job created:", jobCreated);
+      res.status(201).send({ message: "Job created successfully", jobCreated });
+    } catch (error) {
+        console.error("Error creating job:", error);
+        res.status(400).send({ error: 'Failed to create job ad' });
+    }
 });
 
 syncModels().then(() => {
