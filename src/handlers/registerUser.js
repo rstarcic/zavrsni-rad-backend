@@ -13,6 +13,12 @@ function _excludeProperties(obj, excludedProps) {
 
 async function registerUser(userData, model) {
   try {
+    const existingUser = await model.findOne({ where: { email: userData.email } });
+    
+    if (existingUser) {
+      throw new Error('User with this email already exists.');
+    }
+    
     userData.password = await _hashPassword(userData.password);
     let user;
     

@@ -14,7 +14,7 @@ import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./han
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
 import { fetchClientDataById, fetchServiceProviderById } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
-import { createJobAd } from "./handlers/jobAdHandler.js";
+import { createJobAd, fetchAllJobAdSummaryData } from "./handlers/jobAdHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -72,6 +72,9 @@ router.route("/auth/signup/service-provider").post(async (req, res) => {
     }
   } catch (error) {
     console.error("Error registering service provider/job seeker:", error.message);
+    if (error.message.includes('User with this email already exists')) {
+      return res.status(409).json({ message: error.message });
+    }
     return res.status(500).send("Error registering service provider/job seeker: " + error.message);
   }
 });
@@ -111,6 +114,9 @@ router.route("/auth/signup/client").post(async (req, res) => {
       return res.status(400).json({ message: "Client/Employer registration failed" });
     }
   } catch (error) {
+    if (error.message.includes('User with this email already exists')) {
+      return res.status(409).json({ message: error.message });
+    }
     console.error("Error registering client:", error.message);
     return res.status(500).send("Error registering client: " + error.message);
   }
@@ -222,9 +228,9 @@ router.route("/service-provider/profile").patch(authenticateToken, async (req, r
   }
 });
 
-router.route("/service-provider/:userId").get(authenticateToken, async (req, res) => {
+router.route("/service-provider/data").get(authenticateToken, async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const userId = req.user.userId;
     const user = await fetchServiceProviderById(userId);
     const education = await fetchEducationByUserId(userId);
     const workExperience = await fetchWorkExperienceByUserId(userId);
@@ -319,9 +325,10 @@ router.route("/client/profile/upload-photo").post(authenticateToken, upload.sing
   }
 });
 
-router.route("/client/:userId").get(authenticateToken, async (req, res) => {
+router.route("/client/data").get(authenticateToken, async (req, res) => {
   try {
-    const userDataFetched = await fetchClientDataById(req.params.userId);
+    console.log(req.user.userId);
+    const userDataFetched = await fetchClientDataById(req.user.userId);
     if (userDataFetched) {
       res.status(200).json({ message: "User data successfully fetched", userDataFetched });
     } else {
@@ -412,6 +419,18 @@ router.route("/client/jobs").post(authenticateToken, async (req, res) => {
       const jobCreated = await createJobAd(jobAdData, clientId);
         console.log("Job created:", jobCreated);
       res.status(201).send({ message: "Job created successfully", jobCreated });
+    } catch (error) {
+        console.error("Error creating job:", error);
+        res.status(400).send({ error: 'Failed to create job ad' });
+    }
+});
+
+router.route("/client/jobs").get(authenticateToken, async (req, res) => {
+  const clientId = req.user.userId; 
+    try {
+      const jobsFetched = await fetchAllJobAdSummaryData(clientId);
+        console.log("Jobs fetched:", jobsFetched);
+      res.status(201).send({ message: "Job fetched successfully", jobs: jobsFetched });
     } catch (error) {
         console.error("Error creating job:", error);
         res.status(400).send({ error: 'Failed to create job ad' });
