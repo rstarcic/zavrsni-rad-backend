@@ -12,7 +12,7 @@ async function createJobAd(jobAdData, clientId) {
   }
 }
 
-async function fetchAllJobAdSummaryData(clientId) {
+async function fetchAllJobSummaryDataByClientId(clientId) {
   try {
     const jobs = await JobAd.findAll({
       where: { clientId: clientId },
@@ -37,4 +37,20 @@ function formatDate(dateString) {
   return format(date, 'mm/dd/yyyy HH:mm:ss');
 }
 
-export { createJobAd, fetchAllJobAdSummaryData }
+async function fetchAllJobsSummaries(limit) {
+  try {
+    const jobs = await JobAd.findAll({
+      attributes: ['id', 'title', 'category', 'hourlyRate', 'paymentCurrency', 'location', 'contactInfo'],
+      order: [['createdAt', 'DESC']],
+      limit: limit
+    });
+    const plainJobs = jobs.map(job => job.get({ plain: true }));
+    console.log(plainJobs)
+    return plainJobs;
+  }
+  catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+export { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries }

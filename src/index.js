@@ -14,7 +14,7 @@ import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./han
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
 import { fetchClientDataById, fetchServiceProviderById } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
-import { createJobAd, fetchAllJobAdSummaryData } from "./handlers/jobAdHandler.js";
+import { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries } from "./handlers/jobAdHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -327,7 +327,6 @@ router.route("/client/profile/upload-photo").post(authenticateToken, upload.sing
 
 router.route("/client/data").get(authenticateToken, async (req, res) => {
   try {
-    console.log(req.user.userId);
     const userDataFetched = await fetchClientDataById(req.user.userId);
     if (userDataFetched) {
       res.status(200).json({ message: "User data successfully fetched", userDataFetched });
@@ -428,8 +427,20 @@ router.route("/client/jobs").post(authenticateToken, async (req, res) => {
 router.route("/client/jobs").get(authenticateToken, async (req, res) => {
   const clientId = req.user.userId; 
     try {
-      const jobsFetched = await fetchAllJobAdSummaryData(clientId);
+      const jobsFetched = await fetchAllJobSummaryDataByClientId(clientId);
         console.log("Jobs fetched:", jobsFetched);
+      res.status(201).send({ message: "Job fetched successfully", jobs: jobsFetched });
+    } catch (error) {
+        console.error("Error creating job:", error);
+        res.status(400).send({ error: 'Failed to create job ad' });
+    }
+});
+
+router.route("/jobs/summary").get(async (req, res) => {
+  const limit = parseInt(req.query.limit, 9) || 12;
+    try {
+      const jobsFetched = await fetchAllJobsSummaries(limit);
+        console.log("Jobs summary fetched:", jobsFetched);
       res.status(201).send({ message: "Job fetched successfully", jobs: jobsFetched });
     } catch (error) {
         console.error("Error creating job:", error);
