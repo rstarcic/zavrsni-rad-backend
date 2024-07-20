@@ -8,6 +8,8 @@ import {
   fetchServiceProviderProfileImage,
   updateClientDataByUserId,
   fetchClientProfileImage,
+  decodeBase64Image, 
+  encodeBase64Image
 } from "./handlers/profileHandler.js";
 import { updateOrCreateEducation, fetchEducationByUserId } from "./handlers/educationHandler.js";
 import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./handlers/workExperienceHandler.js";
@@ -20,7 +22,6 @@ import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
 import path from "path";
 import { fileURLToPath } from "url";
-import multer from "multer";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
 
@@ -28,7 +29,8 @@ const app = express();
 const router = express.Router();
 const port = process.env.PORT || 3001;
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 const corsOptions = {
   origin: "http://localhost:8080" || "*",
@@ -145,37 +147,7 @@ router.route("/auth/login").post(async (req, res) => {
   }
 });
 
-// multer
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-console.log("dirname", __dirname);
-app.use("/public", express.static(path.join(__dirname, "..", "public")));
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadsDir = path.join(__dirname, "..", "public", "users-avatar");
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "-" + uniqueSuffix);
-  },
-});
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 5000000,
-  },
-  fileFilter: (req, file, callback) => {
-    if (!file.originalname.match(/\.(png|jpeg|jpg)$/)) {
-      return callback(new Error("Please upload a Picture (PNG, JPEG, or JPG)"));
-    }
-    callback(null, true);
-  },
-});
-
-router.route("/service-provider/profile/upload-photo").post(authenticateToken, upload.single("profileImage"), async (req, res) => {
+router.route("/service-provider/profile/upload-photo").post(authenticateToken, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).send({ message: "No file uploaded." });
@@ -312,23 +284,13 @@ router.route("/account/reactivate").patch(async (req, res) => {
   }
 });
 
-router.route("/client/profile/upload-photo").post(authenticateToken, upload.single("profileImage"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).send({ message: "No file uploaded." });
-    }
-    const photoUrl = `public/users-avatar/${req.file.filename}`;
-    res.status(200).send({ message: "Photo uploaded successfully", photoUrl });
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "Error uploading photo" });
-  }
-});
-
 router.route("/client/data").get(authenticateToken, async (req, res) => {
   try {
     const userDataFetched = await fetchClientDataById(req.user.userId);
     if (userDataFetched) {
+      const encodedImage = await encodeBase64Image(userDataFetched.profileImage, userDataFetched.imageType);
+      userDataFetched.profileImage = encodedImage;
+      console.log(userDataFetched.profileImage);
       res.status(200).json({ message: "User data successfully fetched", userDataFetched });
     } else {
       res.status(404).send("User not found");
@@ -339,27 +301,35 @@ router.route("/client/data").get(authenticateToken, async (req, res) => {
   }
 });
 
+/*
 router.route("/client/photo/:userId").get(authenticateToken, async (req, res) => {
   try {
     const userImage = await fetchClientProfileImage(req.params.userId);
     if (!userImage) {
       return res.status(404).send("Photo not found.");
     } else {
-      const photoUrl = user.profileImage ? `http://localhost:3001${user.profileImage}` : "";
-      res.json({ photoUrl });
+      const encodedImage = await encodeBase64Image(userImage.profileImage, userImage.imageType);
+      res.json({ encodedImage });
     }
   } catch (error) {
     console.error("Error fetching user image:", error);
     return res.status(500).send("Error fetching photo.");
   }
 });
-
+*/
 router.route("/client/profile").patch(authenticateToken, async (req, res) => {
   try {
     const { user, userId } = req.body;
+    if (user.profileImage) {
+      const { imageBuffer, imageType } = await decodeBase64Image(user.profileImage);
+      user.profileImage = imageBuffer;
+      user.imageType = imageType; 
+    }
     const userDataUpdated = await updateClientDataByUserId(user, userId);
     if (userDataUpdated) {
-      console.log(userDataUpdated);
+      const encodedImage = await encodeBase64Image(userDataUpdated.profileImage, userDataUpdated.imageType);
+      userDataUpdated.profileImage = encodedImage;
+      console.log(userDataUpdated.profileImage);
       res.status(200).send({ message: "Profile updated successfully", userDataUpdated });
     } else {
       res.status(400).send({ message: "Failed to update profile." });
