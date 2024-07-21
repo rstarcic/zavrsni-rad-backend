@@ -5,15 +5,17 @@ async function updateOrCreateLanguage(userId, languages) {
     if (!Array.isArray(languages)) {
       throw new Error('Languages should be an array');
     }
-
+    console.log("Updating or creating languages for user ID:", userId);
+    console.log("Languages array:", languages);
     const updatedLanguages = await Promise.all(languages.map(async (lang) => {
+      console.log("Processing language:", lang);
       const existingRecord = await Language.findOne({
         where: {
           serviceProviderId: userId,
           language: lang.language
         }
       });
-      console.log("language", lang);
+      console.log("Existing record:", existingRecord);
       let updatedLanguageRecord;
 
       if (existingRecord) {
@@ -27,6 +29,7 @@ async function updateOrCreateLanguage(userId, languages) {
           serviceProviderId: userId
         });
       }
+      console.log(updatedLanguageRecord);
       return updatedLanguageRecord;
     }));
 

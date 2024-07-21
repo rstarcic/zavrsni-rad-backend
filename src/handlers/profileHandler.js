@@ -10,6 +10,7 @@ async function updateServiceProviderDataByUserId(userData, userId) {
       const {
         aboutMeSummary,
         profileImage,
+        imageType,
         firstName,
         lastName,
         gender,
@@ -26,6 +27,7 @@ async function updateServiceProviderDataByUserId(userData, userId) {
 
       if (aboutMeSummary) user.aboutMeSummary = aboutMeSummary;
       if (profileImage) user.profileImage = profileImage;
+      if (imageType) user.imageType = imageType;
       if (firstName) user.firstName = firstName;
       if (lastName) user.lastName = lastName;
       if (gender) user.gender = gender;
@@ -53,7 +55,7 @@ async function fetchServiceProviderProfileImage(userId) {
   try {
     const profileImage = await ServiceProvider.findOne({
       where: { serviceProviderId: userId },
-      attributes: ['profileImage']
+      attributes: ['imageType', 'profileImage']
     });
     return profileImage;
   } catch (error) {
@@ -92,21 +94,16 @@ async function fetchClientProfileImage(userId) {
 async function decodeBase64Image(profileImage) {
   console.log(profileImage)
   const matches = profileImage.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-
   const imageType = matches[1]; 
   const base64Data = matches[2]; 
-
   const imageBuffer = Buffer.from(base64Data, 'base64');
-  console.log(`The size of the image buffer is ${imageBuffer.length} bytes.`);
-  console.log("imageType",imageType);
-  console.log("base64", base64Data);
-  console.log("buffer",imageBuffer);
   return { imageBuffer, imageType };
 }
 
 async function encodeBase64Image(profileImage, imageType) {
   const imageBase64 = profileImage.toString('base64');
   const imageDataUrl = `data:${imageType};base64,${imageBase64}`;
+  console.log(imageDataUrl);
   return imageDataUrl;
 }
 

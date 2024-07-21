@@ -135,7 +135,10 @@ router.route("/auth/login").post(async (req, res) => {
           message: user.message,
         });
       }
-
+      if (user.profileImage !== null && user.imageType !== null) {
+        const encodedImage = await encodeBase64Image(user.profileImage, user.imageType);
+        user.profileImage = encodedImage;
+      }
       const token = generateToken(user);
       res.setHeader("authorization", `Bearer ${token}`);
       res.status(200).json({ message: "Successfully logged in", token, user});
@@ -147,30 +150,24 @@ router.route("/auth/login").post(async (req, res) => {
   }
 });
 
-router.route("/service-provider/profile/upload-photo").post(authenticateToken, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).send({ message: "No file uploaded." });
-    }
-    const photoUrl = `public/users-avatar/${req.file.filename}`;
-    res.status(200).send({ message: "Photo uploaded successfully", photoUrl });
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "Error uploading photo" });
-  }
-});
-
 router.route("/service-provider/profile").patch(authenticateToken, async (req, res) => {
   try {
     const { user, education, workExperience, language, userId } = req.body;
     if (!user || !userId) {
       return res.status(400).json({ message: "Missing user or userId in request body" });
     }
+
     let updatedUser;
     let updatedEducation;
     let updatedWorkExperience;
     let updatedLanguage;
+
     if (user) {
+      if (user.profileImage) {
+        const { imageBuffer, imageType } = await decodeBase64Image(user.profileImage);
+        user.profileImage = imageBuffer;
+        user.imageType = imageType;
+      }
       updatedUser = await updateServiceProviderDataByUserId(user, userId);
     }
     if (education && education.institution && education.degree && education.startDate && education.endDate) {
@@ -179,9 +176,11 @@ router.route("/service-provider/profile").patch(authenticateToken, async (req, r
     if (workExperience && workExperience.companyName && workExperience.jobTitle && workExperience.startDate && workExperience.endDate) {
       updatedWorkExperience = await updateOrCreateWorkExperience(userId, workExperience);
     }
-    console.log(language);
     if (language) {
       updatedLanguage = await updateOrCreateLanguage(userId, language);
+    }
+    if (updatedUser && updatedUser.profileImage && updatedUser.imageType) {
+      updatedUser.profileImage = await encodeBase64Image(updatedUser.profileImage, updatedUser.imageType);
     }
 
     res.status(200).send({
@@ -192,7 +191,7 @@ router.route("/service-provider/profile").patch(authenticateToken, async (req, r
       language: updatedLanguage,
     });
   } catch (error) {
-    console.error(error);
+    console.error(error.message);
     res.status(500).json({
       success: false,
       message: "Internal server error. Failed to update profile.",
@@ -204,6 +203,10 @@ router.route("/service-provider/data").get(authenticateToken, async (req, res) =
   try {
     const userId = req.user.userId;
     const user = await fetchServiceProviderById(userId);
+    if (user.profileImage !== null && user.imageType !== null) {
+      const encodedImage = await encodeBase64Image(user.profileImage, user.imageType);
+      user.profileImage = encodedImage;
+    }
     const education = await fetchEducationByUserId(userId);
     const workExperience = await fetchWorkExperienceByUserId(userId);
     const languages = await fetchLanguagesByUserId(userId);
@@ -225,8 +228,8 @@ router.route("/service-provider/photo/:userId").get(authenticateToken, async (re
     if (!userImage) {
       return res.status(404).send("Photo not found.");
     } else {
-      const photoUrl = user.profileImage ? `http://localhost:3001${user.profileImage}` : "";
-      res.json({ photoUrl });
+      const encodedImage = await encodeBase64Image(userImage.profileImage, userImage.imageType);
+      res.json({ encodedImage });
     }
   } catch (error) {
     console.error("Error fetching user image:", error);
@@ -301,7 +304,7 @@ router.route("/client/data").get(authenticateToken, async (req, res) => {
   }
 });
 
-/*
+
 router.route("/client/photo/:userId").get(authenticateToken, async (req, res) => {
   try {
     const userImage = await fetchClientProfileImage(req.params.userId);
@@ -316,7 +319,7 @@ router.route("/client/photo/:userId").get(authenticateToken, async (req, res) =>
     return res.status(500).send("Error fetching photo.");
   }
 });
-*/
+
 router.route("/client/profile").patch(authenticateToken, async (req, res) => {
   try {
     const { user, userId } = req.body;
