@@ -16,7 +16,7 @@ import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./han
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
 import { fetchClientDataById, fetchServiceProviderById } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
-import { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries } from "./handlers/jobAdHandler.js";
+import { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus } from "./handlers/jobAdHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -408,6 +408,56 @@ router.route("/client/jobs").get(authenticateToken, async (req, res) => {
         res.status(400).send({ error: 'Failed to create job ad' });
     }
 });
+
+router.route("/client/jobs/:jobId/detail").get(authenticateToken, async (req, res) => {
+  const clientId = req.user.userId;
+  const jobId = parseInt(req.params.jobId);
+  try {
+    const jobFetched = await fetchPostedJobDetailDataByClientId(clientId, jobId);
+    console.log("Job fetched:", jobFetched);
+    res.status(200).send({ message: "Job fetched successfully", job: jobFetched });
+  } catch (error) {
+    console.error("Error fetching job:", error);
+    res.status(400).send({ error: 'Failed to fecth job ad' });
+  }
+}).patch(authenticateToken, async (req, res) => {
+  const clientId = req.user.userId;
+  const jobId = parseInt(req.params.jobId);
+  const dataToUpdate = req.body;
+  try {
+    const jobsUpdated = await updatePostedJobAdDataByClientId(clientId, jobId, dataToUpdate);
+    console.log("Job updated:", jobsUpdated);
+    res.status(200).send({ message: "Job updated successfully!", jobs: jobsUpdated });
+  } catch (error) {
+    console.error("Error updating job:", error);
+    res.status(400).send({ error: 'Failed to update job ad' });
+  }
+}).delete (authenticateToken, async (req, res) => {
+  const clientId = req.user.userId; 
+  const jobId = parseInt(req.params.jobId);
+    try {
+      const jobDeleted = await deletePostedJobAdByClientIdAndJobId(clientId, jobId);
+        console.log("Job deleted:", jobDeleted);
+      res.status(200).send({ message: "Job deleted successfully" });
+    } catch (error) {
+        console.error("Error creating job:", error);
+        res.status(400).send({ error: 'Failed to delete job ad' });
+    }
+});
+
+router.route("/client/jobs/:jobId/status").patch(authenticateToken, async (req, res) => {
+  const clientId = req.user.userId;
+  const jobId = parseInt(req.params.jobId);
+  const { status } = req.body;
+  try {
+    const jobStatusUpdated = await updateJobAdStatus(clientId, jobId, status);
+    console.log("Job status updated:", jobStatusUpdated.status);
+    res.status(200).send({ message: "Job status updated successfully!", status: jobStatusUpdated.status });
+  } catch (error) {
+    console.error("Error updating job status:", error);
+    res.status(400).send({ error: 'Failed to update job ad status' });
+  }
+})
 
 router.route("/jobs/summary").get(async (req, res) => {
   const limit = parseInt(req.query.limit, 9) || 12;
