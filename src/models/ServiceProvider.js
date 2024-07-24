@@ -73,7 +73,7 @@ const ServiceProvider = sequelize.define("ServiceProvider", {
     allowNull: true
   },
   profileImage: {
-    type: DataTypes.BLOB('long'),
+    type: DataTypes.BLOB,
     allowNull: true,
   },
   status: {

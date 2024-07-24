@@ -14,15 +14,16 @@ import {
 import { updateOrCreateEducation, fetchEducationByUserId } from "./handlers/educationHandler.js";
 import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./handlers/workExperienceHandler.js";
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
-import { fetchClientDataById, fetchServiceProviderById } from "./handlers/userHandler.js";
+import { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
-import { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus } from "./handlers/jobAdHandler.js";
+import { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus, fetchJobDetailsWithClientData } from "./handlers/jobAdHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { Console } from "console";
 dotenv.config({ path: "../.env" });
 
 const app = express();
@@ -147,6 +148,19 @@ router.route("/auth/login").post(async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.route("/service-provider/role").get(authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const role = await fetchServiceProviderRoleById(userId);
+    res.status(200).json({
+      role
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
   }
 });
 
@@ -275,6 +289,30 @@ router.route("/service-provider/account/deactivate").patch(authenticateToken, as
   }
 });
 
+// fetch job details with client data
+router.route("/service-provider/job/:jobId").get(authenticateToken, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+    const {jobDetails, client} = await fetchJobDetailsWithClientData(jobId);
+    console.log(jobDetails);
+    console.log(client);
+    client.profileImage = jobDetails.Client.profileImage;
+    client.imageType = jobDetails.Client.imageType;
+    if (client.profileImage !== null && client.imageType !== null) {
+      const clientEncodedImage = await encodeBase64Image(client.profileImage, client.imageType);
+     client.profileImage = clientEncodedImage;
+    }
+    console.log("jobDetails.client.profileImage",client.profileImage);
+    res.status(200).json({
+      job:jobDetails, client
+    }
+    );
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+});
+
 router.route("/account/reactivate").patch(async (req, res) => {
   const { email, password } = req.body;
   const accountReactivated = await reactivateAccont(email, password);
@@ -304,6 +342,19 @@ router.route("/client/data").get(authenticateToken, async (req, res) => {
   }
 });
 
+router.route("/client/role").get(authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log(userId);
+    const user = await fetchClientRoleAndTypeById(userId);
+    res.status(200).json(
+     user
+    );
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+});
 
 router.route("/client/photo/:userId").get(authenticateToken, async (req, res) => {
   try {

@@ -74,7 +74,7 @@ const Client = sequelize.define(
       allowNull: true
     },
     profileImage: {
-      type: DataTypes.BLOB('long'),
+      type: DataTypes.BLOB,
       allowNull: true,
     },
     role: {

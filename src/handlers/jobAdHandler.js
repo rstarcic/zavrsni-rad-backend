@@ -1,6 +1,6 @@
-import { application } from "express";
 import JobAd from "../models/JobAd.js";
 import { format } from "date-fns";
+import Client from "../models/Client.js";
 
 function formatDate(dateString) {
   const date = new Date(dateString);
@@ -135,4 +135,43 @@ async function updateJobAdStatus(clientId, jobId, status) {
   }
 }
 
-export { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus }
+async function fetchJobDetailsWithClientData(jobId) {
+  try {
+    const jobDetails = await JobAd.findByPk(jobId, {
+      include: {
+        model: Client,
+        attributes: ['id', 'firstName', 'lastName', 'companyName', 'profileImage', 'imageType', 'type']
+      }
+    });
+    if (!jobDetails) {
+      throw new Error('Job not found');
+    }
+    const clientDetails = {
+      id: jobDetails.Client.id,
+      profileImage: jobDetails.Client.profileImage,
+      imageType: jobDetails.Client.imageType,
+      type: jobDetails.Client.type
+    };
+    if (jobDetails.Client.type === 'individual') {
+      clientDetails.firstName = jobDetails.Client.firstName;
+      clientDetails.lastName = jobDetails.Client.lastName;
+    } else {
+      clientDetails.companyName = jobDetails.Client.companyName;
+    }
+
+    const formattedJobDetails = {
+      ...jobDetails.get({ plain: true }),
+      applicationDeadline: formatDateToInput(jobDetails.applicationDeadline),
+      workDeadline: formatDateToInput(jobDetails.workDeadline),
+      updatedAt: formatDate(jobDetails.updatedAt)
+    };
+  
+    return {
+      jobDetails: formattedJobDetails,
+      client: clientDetails
+    };
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+export { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus, fetchJobDetailsWithClientData }
