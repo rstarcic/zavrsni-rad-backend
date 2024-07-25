@@ -2,10 +2,20 @@ import { DataTypes } from 'sequelize';
 import sequelize from '../db/connection.js';
 
 const JobVacancy = sequelize.define('JobVacancy', {
-    status: {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+    jobStatus: {
         type: DataTypes.STRING,
         allowNull: false,
-        defaultValue: 'pending', // or 'completed', "finished".
+        defaultValue: 'neutral', // or 'pending', 'completed'.
+    },
+    applicationStatus: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'applied', // or 'selected', 'rejected', 'completed'.
     },
     jobAdId: {
         type: DataTypes.INTEGER,
@@ -22,7 +32,12 @@ const JobVacancy = sequelize.define('JobVacancy', {
             model: 'ServiceProviders',
             key: 'id',
             },
-        },
+    },
+    appliedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        defaultValue: DataTypes.NOW,
+    }
     },
     {
     tableName: 'JobVacancies',

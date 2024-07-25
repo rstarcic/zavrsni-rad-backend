@@ -16,7 +16,7 @@ import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./han
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
 import { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
-import { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus, fetchJobDetailsWithClientData } from "./handlers/jobAdHandler.js";
+import { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus, fetchJobDetailsWithClientData, applyForAJob, fetchAllJobAndApplicationData } from "./handlers/jobAdHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -290,7 +290,7 @@ router.route("/service-provider/account/deactivate").patch(authenticateToken, as
 });
 
 // fetch job details with client data
-router.route("/service-provider/job/:jobId").get(authenticateToken, async (req, res) => {
+router.route("/service-provider/jobs/:jobId").get(authenticateToken, async (req, res) => {
   try {
     const jobId = req.params.jobId;
     const {jobDetails, client} = await fetchJobDetailsWithClientData(jobId);
@@ -312,6 +312,36 @@ router.route("/service-provider/job/:jobId").get(authenticateToken, async (req, 
     res.status(500).send(error.message);
   }
 });
+
+router.route("/service-provider/jobs/:jobId/applications").post(authenticateToken, async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId);
+    const serviceProviderId = req.user.userId;
+    const application = await applyForAJob(jobId, serviceProviderId);
+    
+    if (application.message) {
+      return res.status(401).json({ message: application.message });
+    }
+
+    console.log("Application created:", application);
+    res.status(201).json({ message: "Applied successfully", application });
+    } catch (error) {
+      console.error("Error applying for job:", error.message);
+      res.status(404).send({ error: `Failed to apply for job: ${error.message}` });
+    }
+})
+router.route("/service-provider/applications").get(authenticateToken, async (req, res) => {
+  try {
+    const serviceProviderId = req.user.userId;
+    const applications = await fetchAllJobAndApplicationData(serviceProviderId);
+
+    console.log("Applications and job data fetched:", applications);
+    res.status(200).json({ message: "Applied successfully", applications });
+    } catch (error) {
+      console.error("Error fetching applications and job data:", error.message);
+      res.status(404).send({ error: `Failed to fetch applications and job data: ${error.message}` });
+    }
+})
 
 router.route("/account/reactivate").patch(async (req, res) => {
   const { email, password } = req.body;
@@ -448,7 +478,7 @@ router.route("/client/jobs").post(authenticateToken, async (req, res) => {
     }
 });
 
-router.route("/client/jobs").get(authenticateToken, async (req, res) => {
+router.route("/client/jobs/created").get(authenticateToken, async (req, res) => {
   const clientId = req.user.userId; 
     try {
       const jobsFetched = await fetchAllJobSummaryDataByClientId(clientId);
@@ -509,6 +539,29 @@ router.route("/client/jobs/:jobId/status").patch(authenticateToken, async (req, 
     res.status(400).send({ error: 'Failed to update job ad status' });
   }
 })
+
+// fetch job details with client data that posted that job
+router.route("/client/jobs/:jobId").get(authenticateToken, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+    const {jobDetails, client} = await fetchJobDetailsWithClientData(jobId);
+    console.log(jobDetails);
+    console.log(client);
+    client.profileImage = jobDetails.Client.profileImage;
+    client.imageType = jobDetails.Client.imageType;
+    if (client.profileImage !== null && client.imageType !== null) {
+      const clientEncodedImage = await encodeBase64Image(client.profileImage, client.imageType);
+     client.profileImage = clientEncodedImage;
+    }
+    res.status(200).json({
+      job:jobDetails, client
+    }
+    );
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+});
 
 router.route("/jobs/summary").get(async (req, res) => {
   const limit = parseInt(req.query.limit, 9) || 12;

@@ -1,6 +1,7 @@
 import JobAd from "../models/JobAd.js";
 import { format } from "date-fns";
 import Client from "../models/Client.js";
+import JobVacancy from "../models/JobVacancy.js";
 
 function formatDate(dateString) {
   const date = new Date(dateString);
@@ -174,4 +175,58 @@ async function fetchJobDetailsWithClientData(jobId) {
     throw new Error(error.message);
   }
 }
-export { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus, fetchJobDetailsWithClientData }
+
+async function applyForAJob(jobId, serviceProviderId) {
+  try {
+    const jobAd = await JobAd.findByPk(jobId);
+    if (!jobAd) {
+      throw new Error("Job advertisement not found");
+    }
+    const existingApplication = await JobVacancy.findOne({
+      where: {
+        jobAdId: jobId,
+        serviceProviderId
+      }
+    });
+
+    if (existingApplication) {
+      return { message: 'You have already applied for this job' };
+    }
+    const application = await JobVacancy.create({
+      jobAdId: jobId,
+      serviceProviderId
+    });
+
+    return application;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function fetchAllJobAndApplicationData(serviceProviderId) {
+  try {
+    const applications = await JobVacancy.findAll({
+      where: { serviceProviderId },
+      attributes: ['id', 'jobStatus', 'applicationStatus', 'appliedAt'],
+      include: [
+        {
+          model: JobAd,
+          attributes: ['id', 'title', 'category', 'hourlyRate', 'paymentCurrency', 'location', 'duration', 'contactInfo'],
+        include: [
+          {
+            model: Client,
+            attributes: ['firstName', 'lastName', 'companyName', 'type']
+          }
+        ]
+      }
+    ],
+      order: [['appliedAt', 'ASC']],
+    });
+    
+    return applications;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+export { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus, fetchJobDetailsWithClientData, applyForAJob, fetchAllJobAndApplicationData }
