@@ -2,16 +2,17 @@ import JobAd from "../models/JobAd.js";
 import { format } from "date-fns";
 import Client from "../models/Client.js";
 import JobVacancy from "../models/JobVacancy.js";
+import ServiceProvider from "../models/ServiceProvider.js";
 
 function formatDate(dateString) {
   const date = new Date(dateString);
-  return format(date, 'MM/dd/yyyy HH:mm:ss');
+  return format(date, "MM/dd/yyyy HH:mm:ss");
 }
 
 function formatDateToInput(date) {
   const d = new Date(date);
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   const year = d.getFullYear();
 
   return `${year}-${month}-${day}`;
@@ -19,11 +20,11 @@ function formatDateToInput(date) {
 
 async function createJobAd(jobAdData, clientId) {
   try {
-   const newCreatedJob =  await JobAd.create({
-        ...jobAdData,
-        clientId: clientId
-   });
-      return newCreatedJob
+    const newCreatedJob = await JobAd.create({
+      ...jobAdData,
+      clientId: clientId,
+    });
+    return newCreatedJob;
   } catch (error) {
     throw new Error(error.message);
   }
@@ -33,18 +34,17 @@ async function fetchAllJobSummaryDataByClientId(clientId) {
   try {
     const jobs = await JobAd.findAll({
       where: { clientId: clientId },
-      attributes: ['id','title', 'category', 'status', 'createdAt']
+      attributes: ["id", "title", "category", "status", "createdAt"],
     });
-    const formattedJobs = jobs.map(job => {
+    const formattedJobs = jobs.map((job) => {
       return {
         ...job.get({ plain: true }),
-        createdAt: formatDate(job.createdAt)
+        createdAt: formatDate(job.createdAt),
       };
     });
-    console.log("Formatted jobs_", formattedJobs)
+    console.log("Formatted jobs_", formattedJobs);
     return formattedJobs;
-  }
-  catch (error) {
+  } catch (error) {
     throw new Error(error.message);
   }
 }
@@ -52,16 +52,15 @@ async function fetchAllJobSummaryDataByClientId(clientId) {
 async function fetchAllJobsSummaries(limit) {
   try {
     const jobs = await JobAd.findAll({
-      where: { status: 'active' },
-      attributes: ['id', 'title', 'category', 'hourlyRate', 'paymentCurrency', 'location', 'contactInfo'],
-      order: [['createdAt', 'DESC']],
-      limit: limit
+      where: { status: "active" },
+      attributes: ["id", "title", "category", "hourlyRate", "paymentCurrency", "location", "contactInfo"],
+      order: [["createdAt", "DESC"]],
+      limit: limit,
     });
-    const plainJobs = jobs.map(job => job.get({ plain: true }));
-    console.log(plainJobs)
+    const plainJobs = jobs.map((job) => job.get({ plain: true }));
+    console.log(plainJobs);
     return plainJobs;
-  }
-  catch (error) {
+  } catch (error) {
     throw new Error(error.message);
   }
 }
@@ -71,17 +70,16 @@ async function fetchPostedJobDetailDataByClientId(clientId, jobId) {
     const job = await JobAd.findOne({
       where: { clientId: clientId, id: jobId },
     });
-    const formattedJob= {
-    ...job.get({ plain: true }),
-    createdAt: formatDate(job.createdAt),
+    const formattedJob = {
+      ...job.get({ plain: true }),
+      createdAt: formatDate(job.createdAt),
       updatedAt: formatDate(job.updatedAt),
       workDeadline: formatDateToInput(job.workDeadline),
-      applicationDeadline: formatDateToInput(job.applicationDeadline)
-  };
-  console.log("Formatted job", formattedJob)
-  return formattedJob;
- }
-  catch (error) {
+      applicationDeadline: formatDateToInput(job.applicationDeadline),
+    };
+    console.log("Formatted job", formattedJob);
+    return formattedJob;
+  } catch (error) {
     throw new Error(error.message);
   }
 }
@@ -94,17 +92,16 @@ async function updatePostedJobAdDataByClientId(clientId, jobId, dataToUpdate) {
 
     await job.update(dataToUpdate);
 
-    const formattedJob= {
-    ...job.get({ plain: true }),
-    createdAt: formatDate(job.createdAt),
+    const formattedJob = {
+      ...job.get({ plain: true }),
+      createdAt: formatDate(job.createdAt),
       updatedAt: formatDate(job.updatedAt),
       workDeadline: formatDateToInput(job.workDeadline),
-      applicationDeadline: formatDateToInput(job.applicationDeadline)
+      applicationDeadline: formatDateToInput(job.applicationDeadline),
     };
-  console.log("Formatted job", formattedJob)
-  return formattedJob;
- }
-  catch (error) {
+    console.log("Formatted job", formattedJob);
+    return formattedJob;
+  } catch (error) {
     throw new Error(error.message);
   }
 }
@@ -115,10 +112,9 @@ async function deletePostedJobAdByClientIdAndJobId(clientId, jobId) {
       where: { clientId: clientId, id: jobId },
     });
 
-    console.log("Job deleted", job)
+    console.log("Job deleted", job);
     return job;
-  }
-  catch (error) {
+  } catch (error) {
     throw new Error(error.message);
   }
 }
@@ -128,8 +124,8 @@ async function updateJobAdStatus(clientId, jobId, status) {
     const job = await JobAd.findOne({
       where: { clientId: clientId, id: jobId },
     });
-    const newStatus = (status === 'active') ? 'inactive' : 'active';
-    await job.update({ status: newStatus }); 
+    const newStatus = status === "active" ? "inactive" : "active";
+    await job.update({ status: newStatus });
     return job;
   } catch (error) {
     throw new Error(error.message);
@@ -141,19 +137,19 @@ async function fetchJobDetailsWithClientData(jobId) {
     const jobDetails = await JobAd.findByPk(jobId, {
       include: {
         model: Client,
-        attributes: ['id', 'firstName', 'lastName', 'companyName', 'profileImage', 'imageType', 'type']
-      }
+        attributes: ["id", "firstName", "lastName", "companyName", "profileImage", "imageType", "type"],
+      },
     });
     if (!jobDetails) {
-      throw new Error('Job not found');
+      throw new Error("Job not found");
     }
     const clientDetails = {
       id: jobDetails.Client.id,
       profileImage: jobDetails.Client.profileImage,
       imageType: jobDetails.Client.imageType,
-      type: jobDetails.Client.type
+      type: jobDetails.Client.type,
     };
-    if (jobDetails.Client.type === 'individual') {
+    if (jobDetails.Client.type === "individual") {
       clientDetails.firstName = jobDetails.Client.firstName;
       clientDetails.lastName = jobDetails.Client.lastName;
     } else {
@@ -164,12 +160,12 @@ async function fetchJobDetailsWithClientData(jobId) {
       ...jobDetails.get({ plain: true }),
       applicationDeadline: formatDateToInput(jobDetails.applicationDeadline),
       workDeadline: formatDateToInput(jobDetails.workDeadline),
-      updatedAt: formatDate(jobDetails.updatedAt)
+      updatedAt: formatDate(jobDetails.updatedAt),
     };
-  
+
     return {
       jobDetails: formattedJobDetails,
-      client: clientDetails
+      client: clientDetails,
     };
   } catch (error) {
     throw new Error(error.message);
@@ -185,16 +181,16 @@ async function applyForAJob(jobId, serviceProviderId) {
     const existingApplication = await JobVacancy.findOne({
       where: {
         jobAdId: jobId,
-        serviceProviderId
-      }
+        serviceProviderId,
+      },
     });
 
     if (existingApplication) {
-      return { message: 'You have already applied for this job' };
+      return { message: "You have already applied for this job" };
     }
     const application = await JobVacancy.create({
       jobAdId: jobId,
-      serviceProviderId
+      serviceProviderId,
     });
 
     return application;
@@ -207,26 +203,59 @@ async function fetchAllJobAndApplicationData(serviceProviderId) {
   try {
     const applications = await JobVacancy.findAll({
       where: { serviceProviderId },
-      attributes: ['id', 'jobStatus', 'applicationStatus', 'appliedAt'],
+      attributes: ["id", "jobStatus", "applicationStatus", "appliedAt"],
       include: [
         {
           model: JobAd,
-          attributes: ['id', 'title', 'category', 'hourlyRate', 'paymentCurrency', 'location', 'duration', 'contactInfo'],
-        include: [
-          {
-            model: Client,
-            attributes: ['firstName', 'lastName', 'companyName', 'type']
-          }
-        ]
-      }
-    ],
-      order: [['appliedAt', 'ASC']],
+          attributes: ["id", "title", "category", "hourlyRate", "paymentCurrency", "location", "duration", "contactInfo"],
+          include: [
+            {
+              model: Client,
+              attributes: ["firstName", "lastName", "companyName", "type"],
+            },
+          ],
+        },
+      ],
+      order: [["appliedAt", "ASC"]],
     });
-    
+
     return applications;
   } catch (error) {
     throw new Error(error.message);
   }
 }
 
-export { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus, fetchJobDetailsWithClientData, applyForAJob, fetchAllJobAndApplicationData }
+async function fetchBasicCandidatesInfoForJob(jobId) {
+  try {
+    const jobAd = await JobAd.findByPk(jobId, {
+      include: [
+        {
+          model: JobVacancy,
+          include: [
+            {
+              model: ServiceProvider,
+              attributes: ["id", "firstName", "lastName", "phoneNumber", "country", "city", "address", "email", "profileImage", "imageType"],
+            },
+          ],
+        },
+      ],
+    });
+    const candidates = jobAd.JobVacancies.map(vacancy => vacancy.ServiceProvider);
+    return candidates;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+export {
+  createJobAd,
+  fetchAllJobSummaryDataByClientId,
+  fetchAllJobsSummaries,
+  fetchPostedJobDetailDataByClientId,
+  updatePostedJobAdDataByClientId,
+  deletePostedJobAdByClientIdAndJobId,
+  updateJobAdStatus,
+  fetchJobDetailsWithClientData,
+  applyForAJob,
+  fetchAllJobAndApplicationData,
+  fetchBasicCandidatesInfoForJob,
+};

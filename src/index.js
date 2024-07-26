@@ -8,15 +8,27 @@ import {
   fetchServiceProviderProfileImage,
   updateClientDataByUserId,
   fetchClientProfileImage,
-  decodeBase64Image, 
-  encodeBase64Image
+  decodeBase64Image,
+  encodeBase64Image,
 } from "./handlers/profileHandler.js";
 import { updateOrCreateEducation, fetchEducationByUserId } from "./handlers/educationHandler.js";
 import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./handlers/workExperienceHandler.js";
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
 import { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
-import { createJobAd, fetchAllJobSummaryDataByClientId, fetchAllJobsSummaries, fetchPostedJobDetailDataByClientId, updatePostedJobAdDataByClientId, deletePostedJobAdByClientIdAndJobId, updateJobAdStatus, fetchJobDetailsWithClientData, applyForAJob, fetchAllJobAndApplicationData } from "./handlers/jobAdHandler.js";
+import {
+  createJobAd,
+  fetchAllJobSummaryDataByClientId,
+  fetchAllJobsSummaries,
+  fetchPostedJobDetailDataByClientId,
+  updatePostedJobAdDataByClientId,
+  deletePostedJobAdByClientIdAndJobId,
+  updateJobAdStatus,
+  fetchJobDetailsWithClientData,
+  applyForAJob,
+  fetchAllJobAndApplicationData,
+  fetchBasicCandidatesInfoForJob,
+} from "./handlers/jobAdHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -30,8 +42,8 @@ const app = express();
 const router = express.Router();
 const port = process.env.PORT || 3001;
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 const corsOptions = {
   origin: "http://localhost:8080" || "*",
@@ -75,7 +87,7 @@ router.route("/auth/signup/service-provider").post(async (req, res) => {
     }
   } catch (error) {
     console.error("Error registering service provider/job seeker:", error.message);
-    if (error.message.includes('User with this email already exists')) {
+    if (error.message.includes("User with this email already exists")) {
       return res.status(409).json({ message: error.message });
     }
     return res.status(500).send("Error registering service provider/job seeker: " + error.message);
@@ -117,7 +129,7 @@ router.route("/auth/signup/client").post(async (req, res) => {
       return res.status(400).json({ message: "Client/Employer registration failed" });
     }
   } catch (error) {
-    if (error.message.includes('User with this email already exists')) {
+    if (error.message.includes("User with this email already exists")) {
       return res.status(409).json({ message: error.message });
     }
     console.error("Error registering client:", error.message);
@@ -142,7 +154,7 @@ router.route("/auth/login").post(async (req, res) => {
       }
       const token = generateToken(user);
       res.setHeader("authorization", `Bearer ${token}`);
-      res.status(200).json({ message: "Successfully logged in", token, user});
+      res.status(200).json({ message: "Successfully logged in", token, user });
     } else {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -156,7 +168,7 @@ router.route("/service-provider/role").get(authenticateToken, async (req, res) =
     const userId = req.user.userId;
     const role = await fetchServiceProviderRoleById(userId);
     res.status(200).json({
-      role
+      role,
     });
   } catch (error) {
     console.error(error);
@@ -293,20 +305,20 @@ router.route("/service-provider/account/deactivate").patch(authenticateToken, as
 router.route("/service-provider/jobs/:jobId").get(authenticateToken, async (req, res) => {
   try {
     const jobId = req.params.jobId;
-    const {jobDetails, client} = await fetchJobDetailsWithClientData(jobId);
+    const { jobDetails, client } = await fetchJobDetailsWithClientData(jobId);
     console.log(jobDetails);
     console.log(client);
     client.profileImage = jobDetails.Client.profileImage;
     client.imageType = jobDetails.Client.imageType;
     if (client.profileImage !== null && client.imageType !== null) {
       const clientEncodedImage = await encodeBase64Image(client.profileImage, client.imageType);
-     client.profileImage = clientEncodedImage;
+      client.profileImage = clientEncodedImage;
     }
-    console.log("jobDetails.client.profileImage",client.profileImage);
+    console.log("jobDetails.client.profileImage", client.profileImage);
     res.status(200).json({
-      job:jobDetails, client
-    }
-    );
+      job: jobDetails,
+      client,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send(error.message);
@@ -318,18 +330,19 @@ router.route("/service-provider/jobs/:jobId/applications").post(authenticateToke
     const jobId = parseInt(req.params.jobId);
     const serviceProviderId = req.user.userId;
     const application = await applyForAJob(jobId, serviceProviderId);
-    
+
     if (application.message) {
       return res.status(401).json({ message: application.message });
     }
 
     console.log("Application created:", application);
     res.status(201).json({ message: "Applied successfully", application });
-    } catch (error) {
-      console.error("Error applying for job:", error.message);
-      res.status(404).send({ error: `Failed to apply for job: ${error.message}` });
-    }
-})
+  } catch (error) {
+    console.error("Error applying for job:", error.message);
+    res.status(404).send({ error: `Failed to apply for job: ${error.message}` });
+  }
+});
+
 router.route("/service-provider/applications").get(authenticateToken, async (req, res) => {
   try {
     const serviceProviderId = req.user.userId;
@@ -337,11 +350,11 @@ router.route("/service-provider/applications").get(authenticateToken, async (req
 
     console.log("Applications and job data fetched:", applications);
     res.status(200).json({ message: "Applied successfully", applications });
-    } catch (error) {
-      console.error("Error fetching applications and job data:", error.message);
-      res.status(404).send({ error: `Failed to fetch applications and job data: ${error.message}` });
-    }
-})
+  } catch (error) {
+    console.error("Error fetching applications and job data:", error.message);
+    res.status(404).send({ error: `Failed to fetch applications and job data: ${error.message}` });
+  }
+});
 
 router.route("/account/reactivate").patch(async (req, res) => {
   const { email, password } = req.body;
@@ -349,8 +362,7 @@ router.route("/account/reactivate").patch(async (req, res) => {
   if (accountReactivated.success) {
     const token = generateToken(accountReactivated.user);
     return res.status(202).send({ message: "Account reactivated successfully.", token, user: accountReactivated.user });
-  }
-  else {
+  } else {
     return res.status(500).send({ message: "Account reactivation failed." });
   }
 });
@@ -377,9 +389,7 @@ router.route("/client/role").get(authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     console.log(userId);
     const user = await fetchClientRoleAndTypeById(userId);
-    res.status(200).json(
-     user
-    );
+    res.status(200).json(user);
   } catch (error) {
     console.error(error);
     res.status(500).send(error.message);
@@ -407,7 +417,7 @@ router.route("/client/profile").patch(authenticateToken, async (req, res) => {
     if (user.profileImage) {
       const { imageBuffer, imageType } = await decodeBase64Image(user.profileImage);
       user.profileImage = imageBuffer;
-      user.imageType = imageType; 
+      user.imageType = imageType;
     }
     const userDataUpdated = await updateClientDataByUserId(user, userId);
     if (userDataUpdated) {
@@ -466,65 +476,69 @@ router.route("/client/account/deactivate").patch(authenticateToken, async (req, 
 });
 
 router.route("/client/jobs").post(authenticateToken, async (req, res) => {
-  const jobAdData  = req.body;
-    const clientId = req.user.userId; 
-    try {
-      const jobCreated = await createJobAd(jobAdData, clientId);
-        console.log("Job created:", jobCreated);
-      res.status(201).send({ message: "Job created successfully", jobCreated });
-    } catch (error) {
-        console.error("Error creating job:", error);
-        res.status(400).send({ error: 'Failed to create job ad' });
-    }
+  const jobAdData = req.body;
+  const clientId = req.user.userId;
+  try {
+    const jobCreated = await createJobAd(jobAdData, clientId);
+    console.log("Job created:", jobCreated);
+    res.status(201).send({ message: "Job created successfully", jobCreated });
+  } catch (error) {
+    console.error("Error creating job:", error);
+    res.status(400).send({ error: "Failed to create job ad" });
+  }
 });
 
 router.route("/client/jobs/created").get(authenticateToken, async (req, res) => {
-  const clientId = req.user.userId; 
-    try {
-      const jobsFetched = await fetchAllJobSummaryDataByClientId(clientId);
-        console.log("Jobs fetched:", jobsFetched);
-      res.status(201).send({ message: "Job fetched successfully", jobs: jobsFetched });
-    } catch (error) {
-        console.error("Error creating job:", error);
-        res.status(400).send({ error: 'Failed to create job ad' });
-    }
+  const clientId = req.user.userId;
+  try {
+    const jobsFetched = await fetchAllJobSummaryDataByClientId(clientId);
+    console.log("Jobs fetched:", jobsFetched);
+    res.status(201).send({ message: "Job fetched successfully", jobs: jobsFetched });
+  } catch (error) {
+    console.error("Error creating job:", error);
+    res.status(400).send({ error: "Failed to create job ad" });
+  }
 });
 
-router.route("/client/jobs/:jobId/detail").get(authenticateToken, async (req, res) => {
-  const clientId = req.user.userId;
-  const jobId = parseInt(req.params.jobId);
-  try {
-    const jobFetched = await fetchPostedJobDetailDataByClientId(clientId, jobId);
-    console.log("Job fetched:", jobFetched);
-    res.status(200).send({ message: "Job fetched successfully", job: jobFetched });
-  } catch (error) {
-    console.error("Error fetching job:", error);
-    res.status(400).send({ error: 'Failed to fecth job ad' });
-  }
-}).patch(authenticateToken, async (req, res) => {
-  const clientId = req.user.userId;
-  const jobId = parseInt(req.params.jobId);
-  const dataToUpdate = req.body;
-  try {
-    const jobsUpdated = await updatePostedJobAdDataByClientId(clientId, jobId, dataToUpdate);
-    console.log("Job updated:", jobsUpdated);
-    res.status(200).send({ message: "Job updated successfully!", jobs: jobsUpdated });
-  } catch (error) {
-    console.error("Error updating job:", error);
-    res.status(400).send({ error: 'Failed to update job ad' });
-  }
-}).delete (authenticateToken, async (req, res) => {
-  const clientId = req.user.userId; 
-  const jobId = parseInt(req.params.jobId);
+router
+  .route("/client/jobs/:jobId/detail")
+  .get(authenticateToken, async (req, res) => {
+    const clientId = req.user.userId;
+    const jobId = parseInt(req.params.jobId);
+    try {
+      const jobFetched = await fetchPostedJobDetailDataByClientId(clientId, jobId);
+      console.log("Job fetched:", jobFetched);
+      res.status(200).send({ message: "Job fetched successfully", job: jobFetched });
+    } catch (error) {
+      console.error("Error fetching job:", error);
+      res.status(400).send({ error: "Failed to fecth job ad" });
+    }
+  })
+  .patch(authenticateToken, async (req, res) => {
+    const clientId = req.user.userId;
+    const jobId = parseInt(req.params.jobId);
+    const dataToUpdate = req.body;
+    try {
+      const jobsUpdated = await updatePostedJobAdDataByClientId(clientId, jobId, dataToUpdate);
+      console.log("Job updated:", jobsUpdated);
+      res.status(200).send({ message: "Job updated successfully!", jobs: jobsUpdated });
+    } catch (error) {
+      console.error("Error updating job:", error);
+      res.status(400).send({ error: "Failed to update job ad" });
+    }
+  })
+  .delete(authenticateToken, async (req, res) => {
+    const clientId = req.user.userId;
+    const jobId = parseInt(req.params.jobId);
     try {
       const jobDeleted = await deletePostedJobAdByClientIdAndJobId(clientId, jobId);
-        console.log("Job deleted:", jobDeleted);
+      console.log("Job deleted:", jobDeleted);
       res.status(200).send({ message: "Job deleted successfully" });
     } catch (error) {
-        console.error("Error creating job:", error);
-        res.status(400).send({ error: 'Failed to delete job ad' });
+      console.error("Error creating job:", error);
+      res.status(400).send({ error: "Failed to delete job ad" });
     }
-});
+  });
 
 router.route("/client/jobs/:jobId/status").patch(authenticateToken, async (req, res) => {
   const clientId = req.user.userId;
@@ -536,43 +550,61 @@ router.route("/client/jobs/:jobId/status").patch(authenticateToken, async (req, 
     res.status(200).send({ message: "Job status updated successfully!", status: jobStatusUpdated.status });
   } catch (error) {
     console.error("Error updating job status:", error);
-    res.status(400).send({ error: 'Failed to update job ad status' });
+    res.status(400).send({ error: "Failed to update job ad status" });
   }
-})
+});
 
 // fetch job details with client data that posted that job
 router.route("/client/jobs/:jobId").get(authenticateToken, async (req, res) => {
   try {
     const jobId = req.params.jobId;
-    const {jobDetails, client} = await fetchJobDetailsWithClientData(jobId);
+    const { jobDetails, client } = await fetchJobDetailsWithClientData(jobId);
     console.log(jobDetails);
     console.log(client);
     client.profileImage = jobDetails.Client.profileImage;
     client.imageType = jobDetails.Client.imageType;
     if (client.profileImage !== null && client.imageType !== null) {
       const clientEncodedImage = await encodeBase64Image(client.profileImage, client.imageType);
-     client.profileImage = clientEncodedImage;
+      client.profileImage = clientEncodedImage;
     }
     res.status(200).json({
-      job:jobDetails, client
-    }
-    );
+      job: jobDetails,
+      client,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send(error.message);
   }
 });
 
+router.route("/client/jobs/:jobId/candidates").get(authenticateToken, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+    const candidates = await fetchBasicCandidatesInfoForJob(jobId);
+    console.log(candidates);
+    for (let candidate of candidates) {
+      if (candidate.profileImage !== null && candidate.imageType !== null) {
+        candidate.profileImage = await encodeBase64Image(candidate.profileImage, candidate.imageType);
+      }
+    }
+    res.status(200).json({
+    candidates
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+});
 router.route("/jobs/summary").get(async (req, res) => {
   const limit = parseInt(req.query.limit, 9) || 12;
-    try {
-      const jobsFetched = await fetchAllJobsSummaries(limit);
-        console.log("Jobs summary fetched:", jobsFetched);
-      res.status(201).send({ message: "Job fetched successfully", jobs: jobsFetched });
-    } catch (error) {
-        console.error("Error creating job:", error);
-        res.status(400).send({ error: 'Failed to create job ad' });
-    }
+  try {
+    const jobsFetched = await fetchAllJobsSummaries(limit);
+    console.log("Jobs summary fetched:", jobsFetched);
+    res.status(201).send({ message: "Job fetched successfully", jobs: jobsFetched });
+  } catch (error) {
+    console.error("Error creating job:", error);
+    res.status(400).send({ error: "Failed to create job ad" });
+  }
 });
 
 syncModels().then(() => {
