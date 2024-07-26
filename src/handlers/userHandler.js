@@ -20,6 +20,7 @@ async function fetchServiceProviderById(serviceProviderId) {
     const userInstance = await ServiceProvider.findByPk(serviceProviderId);
       if (userInstance) {
         let user = userInstance.get({ plain: true });
+        console.log(user);
       return user;
     } else {
       return null;

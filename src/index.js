@@ -595,6 +595,36 @@ router.route("/client/jobs/:jobId/candidates").get(authenticateToken, async (req
     res.status(500).send(error.message);
   }
 });
+
+router.get('/client/candidates/:candidateId', authenticateToken, async (req, res) => {
+  try {
+    const serviceProviderId = req.params.candidateId;
+    const user = await fetchServiceProviderById(serviceProviderId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Service provider not found' });
+    }
+
+    if (user.profileImage && user.imageType) {
+      const encodedImage = await encodeBase64Image(user.profileImage, user.imageType);
+      user.profileImage = encodedImage;
+    }
+
+    const education = await fetchEducationByUserId(serviceProviderId);
+    const workExperience = await fetchWorkExperienceByUserId(serviceProviderId);
+    const languages = await fetchLanguagesByUserId(serviceProviderId);
+
+    res.status(200).json({
+      user,
+      education,
+      workExperience,
+      languages,
+    });
+  } catch (error) {
+    console.error('Error fetching service provider data:', error);
+    res.status(500).send(error.message);
+  }
+});
 router.route("/jobs/summary").get(async (req, res) => {
   const limit = parseInt(req.query.limit, 9) || 12;
   try {
