@@ -32,10 +32,7 @@ import {
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
-import path from "path";
-import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import { Console } from "console";
 dotenv.config({ path: "../.env" });
 
 const app = express();
@@ -356,6 +353,23 @@ router.route("/service-provider/applications").get(authenticateToken, async (req
   }
 });
 
+router.get('/service-provider/client/:clientId', authenticateToken, async (req, res) => {
+  try {
+    const user = await fetchClientDataById(req.params.clientId);
+    if (user) {
+      const encodedImage = await encodeBase64Image(user.profileImage, user.imageType);
+      user.profileImage = encodedImage;
+      console.log(user.profileImage);
+      res.status(200).json({ message: "User data successfully fetched", user });
+    } else {
+      res.status(404).send("User not found");
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+});
+
 router.route("/account/reactivate").patch(async (req, res) => {
   const { email, password } = req.body;
   const accountReactivated = await reactivateAccont(email, password);
@@ -625,6 +639,24 @@ router.get('/client/candidates/:candidateId', authenticateToken, async (req, res
     res.status(500).send(error.message);
   }
 });
+
+router.get('/client/client-profile/:clientId', authenticateToken, async (req, res) => {
+  try {
+    const user = await fetchClientDataById(req.params.clientId);
+    if (user) {
+      const encodedImage = await encodeBase64Image(user.profileImage, user.imageType);
+      user.profileImage = encodedImage;
+      console.log(user.profileImage);
+      res.status(200).json({ message: "User data successfully fetched", user });
+    } else {
+      res.status(404).send("User not found");
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+});
+
 router.route("/jobs/summary").get(async (req, res) => {
   const limit = parseInt(req.query.limit, 9) || 12;
   try {
