@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import Client from "../models/Client.js";
 import JobVacancy from "../models/JobVacancy.js";
 import ServiceProvider from "../models/ServiceProvider.js";
-
+import { Op } from 'sequelize';
 function formatDate(dateString) {
   const date = new Date(dateString);
   return format(date, "MM/dd/yyyy HH:mm:ss");
@@ -49,13 +49,12 @@ async function fetchAllJobSummaryDataByClientId(clientId) {
   }
 }
 
-async function fetchAllJobsSummaries(limit) {
+async function fetchAllJobsSummaries() {
   try {
     const jobs = await JobAd.findAll({
       where: { status: "active" },
       attributes: ["id", "title", "category", "hourlyRate", "paymentCurrency", "location", "contactInfo"],
       order: [["createdAt", "DESC"]],
-      limit: limit,
     });
     const plainJobs = jobs.map((job) => job.get({ plain: true }));
     console.log(plainJobs);
@@ -246,6 +245,68 @@ async function fetchBasicCandidatesInfoForJob(jobId) {
     throw new Error(error.message);
   }
 }
+
+async function fetchJobsSummariesForHomePage(limit) {
+  try {
+    const jobs = await JobAd.findAll({
+      where: { status: "active" },
+      attributes: ["id", "title", "category", "hourlyRate", "paymentCurrency", "location", "contactInfo"],
+      order: [["createdAt", "DESC"]],
+      limit: limit,
+    });
+    const plainJobs = jobs.map((job) => job.get({ plain: true }));
+    console.log(plainJobs);
+    return plainJobs;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+
+async function fetchAllFilteredJobs(filters) {
+  try {
+    let orConditions = []; 
+
+    if (filters.titles) {
+      orConditions.push({
+        title: Array.isArray(filters.titles) ? { [Op.in]: filters.titles } : filters.titles
+      });
+    }
+
+    if (filters.categories) {
+      orConditions.push({
+        category: Array.isArray(filters.categories) ? { [Op.in]: filters.categories } : filters.categories
+      });
+    }
+
+    if (filters.locations) {
+      orConditions.push({
+        location: Array.isArray(filters.locations) ? { [Op.in]: filters.locations } : filters.locations
+      });
+    }
+   
+    if (filters.minHourlyRate || filters.maxHourlyRate) {
+      const hourlyRateCondition = {};
+      if (filters.minHourlyRate) hourlyRateCondition[Op.gte] = Number(filters.minHourlyRate);
+      if (filters.maxHourlyRate) hourlyRateCondition[Op.lte] = Number(filters.maxHourlyRate);
+      orConditions.push({ hourlyRate: hourlyRateCondition });
+    }
+
+    const where = orConditions.length > 0 ? { [Op.or]: orConditions } : {};
+    const jobs = await JobAd.findAll({
+      where: where,
+      attributes: ["id", "title", "category", "hourlyRate", "paymentCurrency", "location", "contactInfo"],
+      order: [["createdAt", "DESC"]],
+    });
+
+    console.log("Filtered Jobs: ", jobs.map(job => job.get({ plain: true })));
+    return jobs.map(job => job.get({ plain: true }));
+  } catch (error) {
+    console.error('Error in fetchAllFilteredJobs:', error);
+    throw new Error('Failed to fetch jobs due to server error.');
+  }
+}
+
 export {
   createJobAd,
   fetchAllJobSummaryDataByClientId,
@@ -258,4 +319,6 @@ export {
   applyForAJob,
   fetchAllJobAndApplicationData,
   fetchBasicCandidatesInfoForJob,
+  fetchJobsSummariesForHomePage,
+  fetchAllFilteredJobs
 };

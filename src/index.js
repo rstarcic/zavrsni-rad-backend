@@ -28,6 +28,8 @@ import {
   applyForAJob,
   fetchAllJobAndApplicationData,
   fetchBasicCandidatesInfoForJob,
+  fetchJobsSummariesForHomePage,
+  fetchAllFilteredJobs
 } from "./handlers/jobAdHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
@@ -658,9 +660,30 @@ router.get('/client/client-profile/:clientId', authenticateToken, async (req, re
 });
 
 router.route("/jobs/summary").get(async (req, res) => {
+  try {
+    console.log("Received query parameters:", req.query);
+    const { titles, categories, locations, minHourlyRate, maxHourlyRate } = req.query;
+    const filters = { titles, categories, locations, minHourlyRate, maxHourlyRate };
+
+    if (titles || categories || locations || minHourlyRate || maxHourlyRate) {
+      const jobsFetched = await fetchAllFilteredJobs(filters);
+      console.log(jobsFetched);
+      res.status(200).json({ message: "Filtered jobs fetched successfully", jobs: jobsFetched });
+    } else {
+      const jobsFetched = await fetchAllJobsSummaries();
+      console.log(jobsFetched);
+      res.status(200).json({ message: "All job summaries fetched successfully", jobs: jobsFetched });
+    }
+  } catch (error) {
+    console.error("Error creating job:", error);
+    res.status(400).send({ error: "Failed to create job ad" });
+  }
+});
+
+router.route("/jobs/home").get(async (req, res) => {
   const limit = parseInt(req.query.limit, 9) || 12;
   try {
-    const jobsFetched = await fetchAllJobsSummaries(limit);
+    const jobsFetched = await fetchJobsSummariesForHomePage(limit);
     console.log("Jobs summary fetched:", jobsFetched);
     res.status(201).send({ message: "Job fetched successfully", jobs: jobsFetched });
   } catch (error) {
