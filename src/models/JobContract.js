@@ -13,6 +13,14 @@ const JobContract = sequelize.define(
       type: DataTypes.BLOB,
       allowNull: true,
     },
+    clientSignature: {
+      type: DataTypes.BLOB,
+      allowNull: true,
+    },
+    serviceProviderSignature: {
+      type: DataTypes.BLOB,
+      allowNull: true,
+    },
     jobAdId: {
       type: DataTypes.INTEGER,
       allowNull: false,

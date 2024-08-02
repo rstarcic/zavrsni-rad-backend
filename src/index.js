@@ -14,7 +14,7 @@ import {
 import { updateOrCreateEducation, fetchEducationByUserId } from "./handlers/educationHandler.js";
 import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./handlers/workExperienceHandler.js";
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
-import { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById } from "./handlers/userHandler.js";
+import { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
 import {
   createJobAd,
@@ -31,7 +31,7 @@ import {
   fetchJobsSummariesForHomePage,
   fetchAllFilteredJobs
 } from "./handlers/jobAdHandler.js";
-import { fetchDataForContract, generateContract } from "./handlers/contractHandler.js";
+import { fetchClientDataForContract, fetchAllDataForContract, generateClientContract, fetchContract, generateServiceProviderContract, saveClientSignatureToDatabase } from "./handlers/contractHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -301,9 +301,45 @@ router.route("/service-provider/account/deactivate").patch(authenticateToken, as
   }
 });
 
+router.get('/service-provider/jobs/bank-details', authenticateToken, async (req, res) => {
+  try {
+    const serviceProviderId = req.user.userId;
+    const hasBankDetails = await fetchBankDetailsDataByServiceProviderId(serviceProviderId);
+    if (hasBankDetails === true) {
+      res.json({ hasBankDetails });
+    } else if(hasBankDetails === false) {
+      res.json({ hasBankDetails });
+    }
+    else {
+      res.status(404).json({ message: 'User not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+})
+.patch('/service-provider/jobs/bank-details', authenticateToken, async (req, res) => {
+  try {
+    const serviceProviderId = req.user.userId;
+    const { iban, bankName } = req.body;
+    const successfulUpdate = await updateBankDetailsDataByServiceProviderId(serviceProviderId, iban, bankName);
+    if (successfulUpdate) {
+      res.json({ successfulUpdate });
+    } else if(successfulUpdate === false) {
+      res.json({ successfulUpdate });
+    }
+    else {
+      res.status(404).json({ message: 'User not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error.message);
+  }
+});
 // fetch job details with client data
 router.route("/service-provider/jobs/:jobId").get(authenticateToken, async (req, res) => {
   try {
+    console.log( req.params.jobId)
     const jobId = req.params.jobId;
     const { jobDetails, client } = await fetchJobDetailsWithClientData(jobId);
     console.log(jobDetails);
@@ -342,6 +378,38 @@ router.route("/service-provider/jobs/:jobId/applications").post(authenticateToke
     res.status(404).send({ error: `Failed to apply for job: ${error.message}` });
   }
 });
+
+router.route("/service-provider/jobs/:jobId/generate").get(authenticateToken, async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId);
+    const jobContract = await fetchContract(jobId);
+    if (jobContract) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="contract.pdf"');
+      res.send(jobContract);
+    }
+  } catch (error) {
+    console.error("Error fetching job contract:", error.message);
+    res.status(404).send({ error: `Failed to fetch contract: ${error.message}` });
+  }
+});
+
+
+router.route("/service-provider/jobs/:jobId/client/:clientId/generate").post(authenticateToken, async (req, res) => {
+  const jobId = req.params.jobId;
+  const clientId = req.params.clientId;
+  const serviceProviderId = req.user.userId;
+  const { signature } = req.body;
+  try {
+    const contractData = await fetchAllDataForContract(jobId, serviceProviderId, clientId);
+    console.log(contractData);
+    await generateServiceProviderContract(res, signature, contractData);
+  } catch (error) {
+    console.error("Error fetching data for contract:", error);
+    res.status(400).send({ error: "Failed to fetch data for contract" });
+  }
+});
+
 
 router.route("/service-provider/applications").get(authenticateToken, async (req, res) => {
   try {
@@ -649,9 +717,10 @@ router.route("/client/jobs/:jobId/candidates/:candidateId/generate").post(authen
   const clientId = req.user.userId;
   const { signature } = req.body;
   try {
-    const contractData = await fetchDataForContract(jobId, serviceProviderId, clientId);
+  //  await saveClientSignatureToDatabase(signature, jobId)
+    const contractData = await fetchClientDataForContract(jobId, serviceProviderId, clientId);
     console.log(contractData);
-    await generateContract(res, signature, contractData);
+    await generateClientContract(res, signature, contractData);
   } catch (error) {
     console.error("Error fetching data for contract:", error);
     res.status(400).send({ error: "Failed to fetch data for contract" });

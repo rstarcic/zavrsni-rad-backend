@@ -80,6 +80,14 @@ const ServiceProvider = sequelize.define("ServiceProvider", {
     type: DataTypes.STRING,
     defaultValue: "active",
   },
+  iban: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  bankName: {
+    type: DataTypes.STRING,
+    allowNull: true
+  }
 });
 
 export default ServiceProvider;

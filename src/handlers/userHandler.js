@@ -3,7 +3,7 @@ import ServiceProvider from "../models/ServiceProvider.js";
 
 async function fetchClientDataById(clientId) {
   try {
-    const userInstance = await Client.findByPk(clientId);
+    const userInstance = await Client.findByPk(clientId, { attributes: { exclude: ['password'] } });
       if (userInstance) {
         let user = userInstance.get({ plain: true });
       return user;
@@ -17,7 +17,7 @@ async function fetchClientDataById(clientId) {
 
 async function fetchServiceProviderById(serviceProviderId) {
   try {
-    const userInstance = await ServiceProvider.findByPk(serviceProviderId);
+    const userInstance = await ServiceProvider.findByPk(serviceProviderId, { attributes: { exclude: ['password' , 'iban', 'bankName'] } });
       if (userInstance) {
         let user = userInstance.get({ plain: true });
         console.log(user);
@@ -57,5 +57,32 @@ async function fetchClientRoleAndTypeById(clientId) {
   }
 }
 
+async function fetchBankDetailsDataByServiceProviderId(serviceProviderId) {
+  try {
+    const userBankDetails = await ServiceProvider.findByPk(serviceProviderId);
+    if (userBankDetails) {
+      const hasBankDetails = !!userBankDetails.iban && !!userBankDetails.bankName;
+      return hasBankDetails;
+    } else {
+      return null;
+    }
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
 
-export { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById };
+async function updateBankDetailsDataByServiceProviderId(serviceProviderId, iban, bankName) {
+  try {
+    const serviceProvider = await ServiceProvider.findByPk(serviceProviderId);
+    if (!serviceProvider) {
+      throw new Error('Service provider not found');
+    }
+    serviceProvider.iban = iban;
+    serviceProvider.bankName = bankName;
+    await serviceProvider.save(); 
+    return true;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+export { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId };

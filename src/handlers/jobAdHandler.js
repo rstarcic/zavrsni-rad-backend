@@ -210,7 +210,7 @@ async function fetchAllJobAndApplicationData(serviceProviderId) {
           include: [
             {
               model: Client,
-              attributes: ["firstName", "lastName", "companyName", "type"],
+              attributes: ["id", "firstName", "lastName", "companyName", "type"],
             },
           ],
         },
