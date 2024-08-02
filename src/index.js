@@ -31,6 +31,7 @@ import {
   fetchJobsSummariesForHomePage,
   fetchAllFilteredJobs
 } from "./handlers/jobAdHandler.js";
+import { fetchDataForContract, generateContract } from "./handlers/contractHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -641,6 +642,22 @@ router.get('/client/candidates/:candidateId', authenticateToken, async (req, res
     res.status(500).send(error.message);
   }
 });
+
+router.route("/client/jobs/:jobId/candidates/:candidateId/generate").post(authenticateToken, async (req, res) => {
+  const jobId = req.params.jobId;
+  const serviceProviderId = req.params.candidateId;
+  const clientId = req.user.userId;
+  const { signature } = req.body;
+  try {
+    const contractData = await fetchDataForContract(jobId, serviceProviderId, clientId);
+    console.log(contractData);
+    await generateContract(res, signature, contractData);
+  } catch (error) {
+    console.error("Error fetching data for contract:", error);
+    res.status(400).send({ error: "Failed to fetch data for contract" });
+  }
+});
+
 
 router.get('/client/client-profile/:clientId', authenticateToken, async (req, res) => {
   try {
