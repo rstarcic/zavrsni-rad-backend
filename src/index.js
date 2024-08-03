@@ -717,7 +717,7 @@ router.route("/client/jobs/:jobId/candidates/:candidateId/generate").post(authen
   const clientId = req.user.userId;
   const { signature } = req.body;
   try {
-  //  await saveClientSignatureToDatabase(signature, jobId)
+   await saveClientSignatureToDatabase(signature, jobId)
     const contractData = await fetchClientDataForContract(jobId, serviceProviderId, clientId);
     console.log(contractData);
     await generateClientContract(res, signature, contractData);

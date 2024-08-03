@@ -77,7 +77,7 @@ async function generateClientContract(res, clientSignature, contractData) {
         let pdfData = Buffer.concat(buffers);
         const jobContract = await _saveInitialContractToDatabase(pdfData, jobData.id);
         console.log('Contract saved successfully', jobContract);
-        await _updateJobVacancyStatus(jobData.id, clientSignature, serviceProviderData.id);
+        await _updateJobVacancyApplicationStatus(jobData.id, serviceProviderData.id);
     });
   
     res.setHeader('Content-Type', 'application/pdf');
@@ -180,10 +180,8 @@ async function generateServiceProviderContract(res, serviceProviderSignature, co
     const { clientData, serviceProviderData, jobData, amount } = contractData;
     const clientSignature = await _fetchClientSignatureIfContractExists(jobData.id);
     console.log(clientSignature)
-    let clientSignatureBase64 = clientSignature.toString('base64');
-
-    const clientSignatureImage = `data:image/png;base64,${clientSignatureBase64}`;
-    
+    let clientSignatureBuffer = Buffer.from(clientSignature);
+    const signature = `${clientSignatureBuffer}`;
     console.log(serviceProviderSignature)
     const doc = new PDFDocument({ size: 'A4' });
     
@@ -191,9 +189,9 @@ async function generateServiceProviderContract(res, serviceProviderSignature, co
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', async () => {
         let pdfData = Buffer.concat(buffers);
-        const jobContract = await _updatePDFContract(pdfData, jobData.id);
+        const jobContract = await _updatePDFContract(pdfData, serviceProviderSignature, jobData.id);
         console.log('Contract saved successfully', jobContract);
-        await _updateJobVacancyStatus(jobData.id, serviceProviderData.id);
+        await _updateJobVacancyJobStatus(jobData.id, serviceProviderData.id);
     });
   
     res.setHeader('Content-Type', 'application/pdf');
@@ -290,8 +288,8 @@ async function generateServiceProviderContract(res, serviceProviderSignature, co
     if (serviceProviderSignature) {
         doc.image(serviceProviderSignature, { fit: [200, 60], align: 'left' });
     }
-    if (serviceProviderSignature) {
-        doc.image(serviceProviderSignature , { fit: [420, 60], align: 'right' });
+    if (signature) {
+        doc.image(signature , { fit: [420, 60], align: 'right' });
       }
     doc.font('Helvetica').text('Service provider:                                                       Client: ', { align: 'left' });
     doc.moveDown(2);
@@ -349,9 +347,26 @@ async function _saveInitialContractToDatabase(pdfData, jobAdId) {
         jobAdId
     });
     return jobContract;
-  }
+}
 
-async function _updateJobVacancyStatus(jobAdId, serviceProviderId ) {
+async function _updatePDFContract(contractData, serviceProviderSignature, jobAdId) {
+    try {
+        const contract = await JobContract.findOne({ where: { jobAdId } });
+        if (!contract) {
+            throw new Error('Contract not found');
+        }
+        await contract.update({
+            contract: contractData,
+            serviceProviderSignature
+        });
+        console.log('Contract updated successfully');
+    } catch (error) {
+        console.error('Error updating the contract:', error);
+        throw error; 
+    }
+}
+
+async function _updateJobVacancyApplicationStatus(jobAdId, serviceProviderId ) {
     try {
         await JobVacancy.update({
             applicationStatus: 'rejected'
@@ -374,6 +389,24 @@ async function _updateJobVacancyStatus(jobAdId, serviceProviderId ) {
         console.log(`Job Vacancy statuses updated for jobAdId ${jobAdId}: selected for ID ${serviceProviderId} and rejected for others.`);
     } catch (error) {
         console.error('Error updating job vacancy status:', error);
+        throw error;
+    }
+}
+
+
+async function _updateJobVacancyJobStatus(jobAdId, serviceProviderId ) {
+    try {
+        await JobVacancy.update({
+            jobStatus: 'ongoing'
+        }, {
+            where: {
+                jobAdId,
+                serviceProviderId 
+            }
+        });
+        console.log(`Job Vacancy job status updated for jobAdId ${jobAdId}: ongoing for ID ${serviceProviderId}`);
+    } catch (error) {
+        console.error('Error updating job vacancy job status:', error);
         throw error;
     }
 }

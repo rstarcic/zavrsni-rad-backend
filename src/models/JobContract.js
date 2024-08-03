@@ -24,6 +24,7 @@ const JobContract = sequelize.define(
     jobAdId: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      unique: true,
       references: {
         model: "JobAds",
         key: "id",
