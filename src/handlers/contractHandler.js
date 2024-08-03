@@ -19,7 +19,7 @@ async function fetchClientDataForContract(jobId, serviceProviderId, clientId) {
 
         let amount = null;
         if (jobData.duration && jobData.hourlyRate && jobData.workingHours) {
-            amount = _calculateTotalAmount(jobData.duration, jobData.hourlyRate, jobData.workingHours)
+            amount = _calculateTotalPay(jobData.duration, jobData.hourlyRate, jobData.workingHours)
         }
 
         return { serviceProviderData, clientData, jobData, amount };
@@ -43,7 +43,7 @@ async function fetchAllDataForContract(jobId, serviceProviderId, clientId) {
     }
     let amount = null;
     if (jobData.duration && jobData.hourlyRate && jobData.workingHours) {
-        amount = _calculateTotalAmount(jobData.duration, jobData.hourlyRate, jobData.workingHours)
+        amount = _calculateTotalPay(jobData.duration, jobData.hourlyRate, jobData.workingHours)
     }
     return { serviceProviderData, clientData, jobData, amount };
 }
@@ -59,8 +59,20 @@ async function fetchContract(jobAdId) {
         if (!jobContract) {
             throw new Error("No job contract");
         }
-        console.log("COntractttt", jobContract)
         return jobContract.contract;
+    } catch (error) {
+        console.error('Error fetching job contract:', error);
+        throw error;
+    }
+}
+
+async function isContractSigned(jobAdId, signatureField) {
+    try {
+        const jobContract = await JobContract.findOne({ where: { jobAdId } })
+        if (!jobContract) {
+            return;
+        }
+        return !!jobContract[signatureField];
     } catch (error) {
         console.error('Error fetching job contract:', error);
         throw error;
@@ -73,11 +85,12 @@ async function generateClientContract(res, clientSignature, contractData) {
     
     let buffers = [];
     doc.on('data', buffers.push.bind(buffers));
-    doc.on('end', async () => {
-        let pdfData = Buffer.concat(buffers);
-        const jobContract = await _saveInitialContractToDatabase(pdfData, jobData.id);
-        console.log('Contract saved successfully', jobContract);
-        await _updateJobVacancyApplicationStatus(jobData.id, serviceProviderData.id);
+
+    const finishPDF = new Promise((resolve, reject) => {
+        doc.on('end', () => {
+            resolve(Buffer.concat(buffers));
+        });
+        doc.on('error', reject);
     });
   
     res.setHeader('Content-Type', 'application/pdf');
@@ -174,6 +187,17 @@ async function generateClientContract(res, clientSignature, contractData) {
     doc.moveDown(2);
     doc.font('Helvetica').text('_______________________                                     _______________________.', { align: 'left' });
     doc.end();
+
+    try {
+        const pdfData = await finishPDF;
+        await _saveInitialContractToDatabase(pdfData, jobData.id);
+        console.log('Contract saved successfully');
+        await _updateJobVacancyApplicationStatus(jobData.id, serviceProviderData.id);
+        return { success: true, pdfData };
+    } catch (error) {
+        console.error('Error processing contract:', error);
+        return { success: false, error };
+    }
 }
 
 async function generateServiceProviderContract(res, serviceProviderSignature, contractData) {
@@ -298,7 +322,7 @@ async function generateServiceProviderContract(res, serviceProviderSignature, co
 }
 
 async function saveClientSignatureToDatabase(clientSignature, jobAdId) {
-const jobContract = await JobContract.create({
+    const jobContract = await JobContract.create({
         clientSignature,
         jobAdId
     });
@@ -313,38 +337,15 @@ async function _fetchClientSignatureIfContractExists(jobId) {
     return contract.clientSignature;
 }
 
-function _convertDurationToHours(duration) {
-    const [quantity, unit] = duration.split(' ');
-    const numQuantity = parseInt(quantity, 10);
-
-    switch (unit) {
-        case 'week':
-        case 'weeks':
-            return numQuantity * 7 * 24;
-        case 'day':
-        case 'days':
-            return numQuantity * 24;
-        case 'month':
-        case 'months':
-            return numQuantity * 30 * 24;
-        default:
-            throw new Error('Invalid duration unit');
-    }
-}
-
-function _calculateTotalAmount(duration, hourlyRate, workingHours) {
-    const durationInHours = _convertDurationToHours(duration);
-    return hourlyRate * workingHours * durationInHours;
-}
-
 function _formatDate(date) {
     return new Date(date).toLocaleDateString('en-GB');
 }
 
 async function _saveInitialContractToDatabase(pdfData, jobAdId) {
-    const jobContract = await JobContract.create({
-        contract: pdfData,
-        jobAdId
+    const jobContract = await JobContract.update({
+        contract: pdfData
+    }, {
+        where: { jobAdId }  
     });
     return jobContract;
 }
@@ -357,7 +358,8 @@ async function _updatePDFContract(contractData, serviceProviderSignature, jobAdI
         }
         await contract.update({
             contract: contractData,
-            serviceProviderSignature
+            serviceProviderSignature,
+            status: 'completed'
         });
         console.log('Contract updated successfully');
     } catch (error) {
@@ -393,7 +395,6 @@ async function _updateJobVacancyApplicationStatus(jobAdId, serviceProviderId ) {
     }
 }
 
-
 async function _updateJobVacancyJobStatus(jobAdId, serviceProviderId ) {
     try {
         await JobVacancy.update({
@@ -410,6 +411,36 @@ async function _updateJobVacancyJobStatus(jobAdId, serviceProviderId ) {
         throw error;
     }
 }
+
+function _calculateTotalPay(duration, hourlyRate, workingHours) {
+    const durationRegex = /^(\d+)\s*(day|week|month)s?$/;
+    const match = duration.match(durationRegex);
+
+    if (!match) {
+        throw new Error("Invalid duration format. Please use 'number day/week/month'.");
+    }
+
+    const quantity = parseInt(match[1]);
+    const unit = match[2];
+
+    let totalHours = 0;
+    switch (unit) {
+        case 'day':
+            totalHours = quantity * workingHours;
+            break;
+        case 'week':
+            totalHours = quantity * workingHours * 7; 
+            break;
+        case 'month':
+            totalHours = quantity * workingHours * 7 * 4.33;
+            break;
+        default:
+            throw new Error("Invalid duration unit. Please use 'day', 'week', or 'month'.");
+    }
+
+    return totalHours * hourlyRate;
+}
+
 export {
-    fetchClientDataForContract, generateClientContract, fetchContract, fetchAllDataForContract, generateServiceProviderContract, saveClientSignatureToDatabase
+    fetchClientDataForContract, generateClientContract, fetchContract, fetchAllDataForContract, generateServiceProviderContract, saveClientSignatureToDatabase, isContractSigned
 }

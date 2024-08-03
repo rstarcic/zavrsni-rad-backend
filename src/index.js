@@ -29,9 +29,10 @@ import {
   fetchAllJobAndApplicationData,
   fetchBasicCandidatesInfoForJob,
   fetchJobsSummariesForHomePage,
-  fetchAllFilteredJobs
+  fetchAllFilteredJobs,
+  fetchApplicationStatus
 } from "./handlers/jobAdHandler.js";
-import { fetchClientDataForContract, fetchAllDataForContract, generateClientContract, fetchContract, generateServiceProviderContract, saveClientSignatureToDatabase } from "./handlers/contractHandler.js";
+import { fetchClientDataForContract, fetchAllDataForContract, generateClientContract, fetchContract, generateServiceProviderContract, saveClientSignatureToDatabase, isContractSigned } from "./handlers/contractHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -410,6 +411,17 @@ router.route("/service-provider/jobs/:jobId/client/:clientId/generate").post(aut
   }
 });
 
+router.route("/service-provider/jobs/:jobId/contract/signed").get(authenticateToken, async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId);
+    const isContractSignedByServiceProvider = await isContractSigned(jobId, "serviceProviderSignature");
+    const signed = isContractSignedByServiceProvider ? true : false;
+    res.status(202).send({ message: `Contract is already signed by service provider`, signed });
+  } catch (error) {
+    console.error("Error fetching job contract:", error.message);
+    res.status(404).send({ error: `Failed to fetch contract: ${error.message}` });
+  }
+});
 
 router.route("/service-provider/applications").get(authenticateToken, async (req, res) => {
   try {
@@ -725,8 +737,21 @@ router.route("/client/jobs/:jobId/candidates/:candidateId/generate").post(authen
     console.error("Error fetching data for contract:", error);
     res.status(400).send({ error: "Failed to fetch data for contract" });
   }
+}); 
+router.route("/client/jobs/:jobId/candidates/:candidateId/application-status").get(authenticateToken, async (req, res) => {
+  const jobId = req.params.jobId;
+  const serviceProviderId = req.params.candidateId;
+  try {
+    const status = await fetchApplicationStatus(jobId, serviceProviderId);
+    if (status) {
+      console.log("ApplicationStatus:", status);
+      return status;
+    }
+  } catch (error) {
+    console.error("Error fetching job application status:", error);
+    res.status(400).send({ error: "Failed to fetch job application status" });
+  }
 });
-
 
 router.get('/client/client-profile/:clientId', authenticateToken, async (req, res) => {
   try {

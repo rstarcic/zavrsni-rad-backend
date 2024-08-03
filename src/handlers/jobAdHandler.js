@@ -262,7 +262,6 @@ async function fetchJobsSummariesForHomePage(limit) {
   }
 }
 
-
 async function fetchAllFilteredJobs(filters) {
   try {
     let orConditions = []; 
@@ -307,6 +306,17 @@ async function fetchAllFilteredJobs(filters) {
   }
 }
 
+async function fetchApplicationStatus(jobAdId, serviceProviderId) {
+  try {
+    const job = await JobVacancy.findOne({
+    where: { jobAdId, serviceProviderId},
+    });
+  return job.applicationStatus;
+} catch (error) {
+  throw new Error(error.message);
+}
+}
+
 export {
   createJobAd,
   fetchAllJobSummaryDataByClientId,
@@ -320,5 +330,6 @@ export {
   fetchAllJobAndApplicationData,
   fetchBasicCandidatesInfoForJob,
   fetchJobsSummariesForHomePage,
-  fetchAllFilteredJobs
+  fetchAllFilteredJobs,
+  fetchApplicationStatus
 };
