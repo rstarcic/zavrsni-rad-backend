@@ -4,18 +4,24 @@ import Client from "../models/Client.js";
 import JobVacancy from "../models/JobVacancy.js";
 import ServiceProvider from "../models/ServiceProvider.js";
 import { Op } from 'sequelize';
-function formatDate(dateString) {
+
+function formatDateToMMDDYYYYHHMM(dateString) {
   const date = new Date(dateString);
-  return format(date, "MM/dd/yyyy HH:mm:ss");
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0'); 
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${month}/${day}/${year} ${hours}:${minutes}`;
 }
 
-function formatDateToInput(date) {
-  const d = new Date(date);
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+function formatDateToInput(dateString) {
+  const d = new Date(dateString);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0'); 
   const year = d.getFullYear();
 
-  return `${year}-${month}-${day}`;
+  return `${month}/${day}/${year}`;
 }
 
 async function createJobAd(jobAdData, clientId) {
@@ -39,7 +45,7 @@ async function fetchAllJobSummaryDataByClientId(clientId) {
     const formattedJobs = jobs.map((job) => {
       return {
         ...job.get({ plain: true }),
-        createdAt: formatDate(job.createdAt),
+        createdAt: formatDateToMMDDYYYYHHMM(job.createdAt),
       };
     });
     console.log("Formatted jobs_", formattedJobs);
@@ -71,8 +77,8 @@ async function fetchPostedJobDetailDataByClientId(clientId, jobId) {
     });
     const formattedJob = {
       ...job.get({ plain: true }),
-      createdAt: formatDate(job.createdAt),
-      updatedAt: formatDate(job.updatedAt),
+      createdAt: formatDateToMMDDYYYYHHMM(job.createdAt),
+      updatedAt: formatDateToMMDDYYYYHHMM(job.updatedAt),
       workDeadline: formatDateToInput(job.workDeadline),
       applicationDeadline: formatDateToInput(job.applicationDeadline),
     };
@@ -93,8 +99,8 @@ async function updatePostedJobAdDataByClientId(clientId, jobId, dataToUpdate) {
 
     const formattedJob = {
       ...job.get({ plain: true }),
-      createdAt: formatDate(job.createdAt),
-      updatedAt: formatDate(job.updatedAt),
+      createdAt: formatDateToMMDDYYYYHHMM(job.createdAt),
+      updatedAt: formatDateToMMDDYYYYHHMM(job.updatedAt),
       workDeadline: formatDateToInput(job.workDeadline),
       applicationDeadline: formatDateToInput(job.applicationDeadline),
     };
@@ -159,7 +165,7 @@ async function fetchJobDetailsWithClientData(jobId) {
       ...jobDetails.get({ plain: true }),
       applicationDeadline: formatDateToInput(jobDetails.applicationDeadline),
       workDeadline: formatDateToInput(jobDetails.workDeadline),
-      updatedAt: formatDate(jobDetails.updatedAt),
+      updatedAt: formatDateToMMDDYYYYHHMM(jobDetails.updatedAt),
     };
 
     return {
@@ -218,6 +224,11 @@ async function fetchAllJobAndApplicationData(serviceProviderId) {
       order: [["appliedAt", "ASC"]],
     });
 
+    applications.forEach(application => {
+      application.setDataValue('appliedAt', formatDateToMMDDYYYYHHMM(application.appliedAt));
+      console.log(application.appliedAt);
+    });
+    
     return applications;
   } catch (error) {
     throw new Error(error.message);
@@ -230,6 +241,7 @@ async function fetchBasicCandidatesInfoForJob(jobId) {
       include: [
         {
           model: JobVacancy,
+          attributes:["applicationStatus"],
           include: [
             {
               model: ServiceProvider,
@@ -239,7 +251,11 @@ async function fetchBasicCandidatesInfoForJob(jobId) {
         },
       ],
     });
-    const candidates = jobAd.JobVacancies.map(vacancy => vacancy.ServiceProvider);
+    const candidates = jobAd.JobVacancies.map(vacancy => ({
+      serviceProvider: vacancy.ServiceProvider,
+      applicationStatus: vacancy.applicationStatus
+    }));
+    console.log(candidates)
     return candidates;
   } catch (error) {
     throw new Error(error.message);

@@ -32,11 +32,12 @@ import {
   fetchAllFilteredJobs,
   fetchApplicationStatus
 } from "./handlers/jobAdHandler.js";
-import { fetchClientDataForContract, fetchAllDataForContract, generateClientContract, fetchContract, generateServiceProviderContract, saveClientSignatureToDatabase, isContractSigned } from "./handlers/contractHandler.js";
+import { fetchClientDataForContract, fetchAllDataForContract, generateClientContract, generateServiceProviderContract, saveClientSignatureToDatabase, fetchContractByJobAdId, isContractSigned, fetchClientContracts, fetchContractByContractId } from "./handlers/contractHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
 import dotenv from "dotenv";
+import { Console } from "console";
 dotenv.config({ path: "../.env" });
 
 const app = express();
@@ -383,7 +384,7 @@ router.route("/service-provider/jobs/:jobId/applications").post(authenticateToke
 router.route("/service-provider/jobs/:jobId/generate").get(authenticateToken, async (req, res) => {
   try {
     const jobId = parseInt(req.params.jobId);
-    const jobContract = await fetchContract(jobId);
+    const jobContract = await fetchContractByJobAdId(jobId);
     if (jobContract) {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="contract.pdf"');
@@ -680,8 +681,8 @@ router.route("/client/jobs/:jobId/candidates").get(authenticateToken, async (req
     const candidates = await fetchBasicCandidatesInfoForJob(jobId);
     console.log(candidates);
     for (let candidate of candidates) {
-      if (candidate.profileImage !== null && candidate.imageType !== null) {
-        candidate.profileImage = await encodeBase64Image(candidate.profileImage, candidate.imageType);
+      if (candidate.serviceProvider.profileImage !== null && candidate.serviceProvider.imageType !== null) {
+        candidate.serviceProvider.profileImage = await encodeBase64Image(candidate.serviceProvider.profileImage, candidate.serviceProvider.imageType);
       }
     }
     res.status(200).json({
@@ -738,6 +739,7 @@ router.route("/client/jobs/:jobId/candidates/:candidateId/generate").post(authen
     res.status(400).send({ error: "Failed to fetch data for contract" });
   }
 }); 
+
 router.route("/client/jobs/:jobId/candidates/:candidateId/application-status").get(authenticateToken, async (req, res) => {
   const jobId = req.params.jobId;
   const serviceProviderId = req.params.candidateId;
@@ -750,6 +752,34 @@ router.route("/client/jobs/:jobId/candidates/:candidateId/application-status").g
   } catch (error) {
     console.error("Error fetching job application status:", error);
     res.status(400).send({ error: "Failed to fetch job application status" });
+  }
+});
+
+
+router.route("/client/contracts").get(authenticateToken, async (req, res) => {
+  const clientId = req.user.userId;
+  try {
+    const contractsFetched = await fetchClientContracts(clientId);
+    console.log("Contracts fetched:", contractsFetched);
+    res.status(200).send({ message: "Client contracts fetched successfully", contracts: contractsFetched });
+  } catch (error) {
+    console.error("Error fetching contracts:", error);
+    res.status(400).send({ error: "Failed to fetch client contracts" });
+  }
+});
+
+router.route("/client/contracts/:contractId/download").get(authenticateToken, async (req, res) => {
+const contractId = req.params?.contractId
+  try {
+    const contract = await fetchContractByContractId(contractId);
+    if (contract) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="contract.pdf"');
+      res.send(contract);
+    }
+  } catch (error) {
+    console.error("Error fetching contracts:", error);
+    res.status(400).send({ error: "Failed to fetch client contracts" });
   }
 });
 

@@ -53,7 +53,7 @@ async function fetchAllDataForContract(jobId, serviceProviderId, clientId) {
 }
 }
 
-async function fetchContract(jobAdId) {
+async function fetchContractByJobAdId(jobAdId) {
     try {
         const jobContract = await JobContract.findOne({ where: { jobAdId } })
         if (!jobContract) {
@@ -62,6 +62,50 @@ async function fetchContract(jobAdId) {
         return jobContract.contract;
     } catch (error) {
         console.error('Error fetching job contract:', error);
+        throw error;
+    }
+}
+
+async function fetchContractByContractId(id) {
+    try {
+        const jobContract = await JobContract.findByPk(id);
+        if (!jobContract) {
+            throw new Error("No job contract");
+        }
+        return jobContract.contract;
+    } catch (error) {
+        console.error('Error fetching job contract:', error);
+        throw error;
+    }
+}
+
+async function fetchClientContracts(clientId) {
+    try {
+        const clientContracts = await Client.findByPk(clientId, {
+            include: [{
+                model: JobAd, attributes: ["id", "title"],
+                required: true,
+                include: [
+                    {
+                    model: JobContract,
+                        attributes: ["id", "updatedAt", "status", "contract"],
+                        required: true,
+                    }
+                ]
+            }
+            ]
+        });
+        if (!clientContracts) {
+            throw new Error("No client contracts");
+        }
+        clientContracts.JobAds.forEach(jobAd => {
+            jobAd.JobContracts.forEach(jobContract => {
+                jobContract.setDataValue('updatedAt', formatDateToMMDDYYYYHHMM(jobContract.updatedAt));
+            });
+        });
+        return clientContracts;
+    } catch (error) {
+        console.error('Error fetching client contracts:', error);
         throw error;
     }
 }
@@ -341,6 +385,16 @@ function _formatDate(date) {
     return new Date(date).toLocaleDateString('en-GB');
 }
 
+function formatDateToMMDDYYYYHHMM(dateString) {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0'); 
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${month}/${day}/${year} ${hours}:${minutes}`;
+}
+
 async function _saveInitialContractToDatabase(pdfData, jobAdId) {
     const jobContract = await JobContract.update({
         contract: pdfData
@@ -442,5 +496,5 @@ function _calculateTotalPay(duration, hourlyRate, workingHours) {
 }
 
 export {
-    fetchClientDataForContract, generateClientContract, fetchContract, fetchAllDataForContract, generateServiceProviderContract, saveClientSignatureToDatabase, isContractSigned
+    fetchClientDataForContract, generateClientContract, fetchContractByJobAdId, fetchContractByContractId, fetchAllDataForContract, generateServiceProviderContract, saveClientSignatureToDatabase, isContractSigned, fetchClientContracts
 }
