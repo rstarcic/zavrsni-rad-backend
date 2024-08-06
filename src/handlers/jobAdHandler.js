@@ -1,5 +1,4 @@
 import JobAd from "../models/JobAd.js";
-import { format } from "date-fns";
 import Client from "../models/Client.js";
 import JobVacancy from "../models/JobVacancy.js";
 import ServiceProvider from "../models/ServiceProvider.js";
@@ -204,10 +203,11 @@ async function applyForAJob(jobId, serviceProviderId) {
   }
 }
 
-async function fetchAllJobAndApplicationData(serviceProviderId) {
+async function fetchAllJobAndApplicationData(serviceProviderId, status) {
   try {
+    const whereCondition = { serviceProviderId, jobStatus: status}
     const applications = await JobVacancy.findAll({
-      where: { serviceProviderId },
+      where: whereCondition,
       attributes: ["id", "jobStatus", "applicationStatus", "appliedAt"],
       include: [
         {
@@ -333,6 +333,30 @@ async function fetchApplicationStatus(jobAdId, serviceProviderId) {
 }
 }
 
+async function updateVacancyJobStatus(serviceProviderId, jobAdId) {
+  try {
+    const vacancyJobStatus = await JobVacancy.findOne({
+      where: {
+        jobAdId: jobAdId,
+        serviceProviderId: serviceProviderId
+      }
+    });
+
+    if (!vacancyJobStatus) {
+      console.log('Job vacancy not found.');
+      return false;
+    }
+
+    await vacancyJobStatus.update({ jobStatus: 'completed' });
+    console.log('Job status updated to completed');
+    return true;
+  }
+  catch (error) {
+    console.error(`Error updating job status: ${error.message}`);
+    return false;
+  }
+}
+
 export {
   createJobAd,
   fetchAllJobSummaryDataByClientId,
@@ -347,5 +371,6 @@ export {
   fetchBasicCandidatesInfoForJob,
   fetchJobsSummariesForHomePage,
   fetchAllFilteredJobs,
-  fetchApplicationStatus
+  fetchApplicationStatus,
+  updateVacancyJobStatus,
 };

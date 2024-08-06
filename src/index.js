@@ -30,7 +30,8 @@ import {
   fetchBasicCandidatesInfoForJob,
   fetchJobsSummariesForHomePage,
   fetchAllFilteredJobs,
-  fetchApplicationStatus
+  fetchApplicationStatus,
+  updateVacancyJobStatus
 } from "./handlers/jobAdHandler.js";
 import { fetchClientDataForContract, fetchAllDataForContract, generateClientContract, generateServiceProviderContract, saveClientSignatureToDatabase, fetchContractByJobAdId, isContractSigned, fetchClientContracts, fetchContractByContractId } from "./handlers/contractHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
@@ -424,16 +425,61 @@ router.route("/service-provider/jobs/:jobId/contract/signed").get(authenticateTo
   }
 });
 
-router.route("/service-provider/applications").get(authenticateToken, async (req, res) => {
+router.route("/service-provider/applications/applied").get(authenticateToken, async (req, res) => {
   try {
     const serviceProviderId = req.user.userId;
-    const applications = await fetchAllJobAndApplicationData(serviceProviderId);
+    const applications = await fetchAllJobAndApplicationData(serviceProviderId, 'neutral');
 
     console.log("Applications and job data fetched:", applications);
     res.status(200).json({ message: "Applied successfully", applications });
   } catch (error) {
     console.error("Error fetching applications and job data:", error.message);
     res.status(404).send({ error: `Failed to fetch applications and job data: ${error.message}` });
+  }
+});
+
+router.route("/service-provider/applications/current").get(authenticateToken, async (req, res) => {
+  try {
+    const serviceProviderId = req.user.userId;
+    const applications = await fetchAllJobAndApplicationData(serviceProviderId, 'ongoing');
+
+    console.log("Applications and job data fetched:", applications);
+    res.status(200).json({ message: "Applied successfully", applications });
+  } catch (error) {
+    console.error("Error fetching applications and job data:", error.message);
+    res.status(404).send({ error: `Failed to fetch applications and job data: ${error.message}` });
+  }
+});
+
+router.route("/service-provider/applications/completed").get(authenticateToken, async (req, res) => {
+  try {
+    const serviceProviderId = req.user.userId;
+    const applications = await fetchAllJobAndApplicationData(serviceProviderId, 'completed');
+
+    console.log("Applications and job data fetched:", applications);
+    res.status(200).json({ message: "Applied successfully", applications });
+  } catch (error) {
+    console.error("Error fetching applications and job data:", error.message);
+    res.status(404).send({ error: `Failed to fetch applications and job data: ${error.message}` });
+  }
+});
+
+router.route("/service-provider/applications/:jobId/complete").patch(authenticateToken, async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.jobId);
+    const serviceProviderId = parseInt(req.user.userId);
+
+    const applicationUpdated = await updateVacancyJobStatus(serviceProviderId, jobId);
+
+    if (!applicationUpdated) {
+      return res.status(404).json({ message: "Job vacancy not found or not authorized" });
+    }
+
+    console.log("Job marked as completed:", applicationUpdated);
+    res.status(200).json({ message: "Job marked as completed successfully", application: applicationUpdated });
+  } catch (error) {
+    console.error("Error marking job as completed:", error.message);
+    res.status(500).send({ error: `Failed to mark job as completed: ${error.message}` });
   }
 });
 

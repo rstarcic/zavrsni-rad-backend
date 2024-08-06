@@ -6,11 +6,12 @@ import PDFDocument from 'pdfkit';
 import { Buffer } from 'buffer';
 import JobVacancy from '../models/JobVacancy.js';
 import { Op } from 'sequelize';
+import { updateJobAdStatus } from "../handlers/jobAdHandler.js";
 
 async function fetchClientDataForContract(jobId, serviceProviderId, clientId) {
     try {
         const serviceProviderData = await ServiceProvider.findByPk(serviceProviderId, { attributes: ['id'] });
-        const clientData = await Client.findByPk(clientId, { attributes: ['firstName', 'lastName', 'companyName', 'address', 'city'] });
+        const clientData = await Client.findByPk(clientId, { attributes: ['id', 'firstName', 'lastName', 'companyName', 'address', 'city'] });
         const jobData = await JobAd.findByPk(jobId, { attributes: ['id', 'workDeadline', 'hourlyRate', 'paymentCurrency', 'workingHours', 'duration', 'description'] });
         
         if (!serviceProviderData && !clientData && !jobData) {
@@ -237,6 +238,7 @@ async function generateClientContract(res, clientSignature, contractData) {
         await _saveInitialContractToDatabase(pdfData, jobData.id);
         console.log('Contract saved successfully');
         await _updateJobVacancyApplicationStatus(jobData.id, serviceProviderData.id);
+        await updateJobAdStatus(clientData.id, jobData.id, 'active');
         return { success: true, pdfData };
     } catch (error) {
         console.error('Error processing contract:', error);
