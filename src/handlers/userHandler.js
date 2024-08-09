@@ -85,4 +85,19 @@ async function updateBankDetailsDataByServiceProviderId(serviceProviderId, iban,
     throw new Error(error.message);
   }
 }
-export { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId };
+
+async function updateServiceProviderWithStripeAccountId(serviceProviderId, stripeAccountId) {
+  try {
+    const serviceProvider = await ServiceProvider.findByPk(serviceProviderId);
+    if (!serviceProvider) {
+      throw new Error('Service provider not found');
+    }
+    serviceProvider.serviceProviderStripeAccountId  = stripeAccountId;
+    await serviceProvider.save(); 
+    return true;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+export { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId, updateServiceProviderWithStripeAccountId };

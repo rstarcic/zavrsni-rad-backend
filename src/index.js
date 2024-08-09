@@ -14,7 +14,7 @@ import {
 import { updateOrCreateEducation, fetchEducationByUserId } from "./handlers/educationHandler.js";
 import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./handlers/workExperienceHandler.js";
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
-import { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId } from "./handlers/userHandler.js";
+import { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId, updateServiceProviderWithStripeAccountId } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
 import {
   createJobAd,
@@ -34,6 +34,7 @@ import {
   updateVacancyJobStatus
 } from "./handlers/jobAdHandler.js";
 import { fetchClientDataForContract, fetchAllDataForContract, generateClientContract, generateServiceProviderContract, saveClientSignatureToDatabase, fetchContractByJobAdId, isContractSigned, fetchClientContracts, fetchContractByContractId } from "./handlers/contractHandler.js";
+import { createServiceProviderStripeAccount, getStripeAccountStatus, createProductPriceAndCustomer, saveProductAndPriceByJobAdId, saveCustomerByClientId } from "./handlers/paymentHandler.js"
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -497,6 +498,107 @@ router.get('/service-provider/client/:clientId', authenticateToken, async (req, 
   } catch (error) {
     console.error(error);
     res.status(500).send(error.message);
+  }
+});
+
+router.route('/service-provider/stripe-connected-account').post(authenticateToken, async (req, res) => {
+  const serviceProviderId = req.user.userId;
+  try {
+  const user = await fetchServiceProviderById(serviceProviderId);
+  if (!user) {
+    return res.status(404).json({ error: 'Service provider not found' });
+  }
+
+    const stripeData = await createServiceProviderStripeAccount(serviceProviderId, user.email, user.country);
+
+  if (stripeData && stripeData.accountId) {
+    const updatedServiceProvider = await updateServiceProviderWithStripeAccountId(serviceProviderId, stripeData.accountId);
+    
+    if (updatedServiceProvider) {
+      return res.status(201).json(stripeData);
+    } else {
+      return res.status(500).json({ error: 'Failed to update service provider with Stripe account ID' });
+    }
+  }
+
+    return res.status(500).json({ error: 'Failed to create Stripe connected account' });
+} catch (error) {
+  console.error('Error in Stripe account creation:', error.message);
+  res.status(500).json({ error: 'Internal server error' });
+}
+});
+
+router.route('/service-provider/stripe-status/:accountId').get(authenticateToken, async (req, res) => {
+  const accountId = req.params.accountId;
+  const serviceProviderId = req.user.userId;
+  try {
+      const stripeAccount = await getStripeAccountStatus(serviceProviderId, accountId);
+
+      if (!stripeAccount) {
+          return res.status(404).json({ error: 'Stripe account not found' });
+      }
+
+      res.json({ onboardingComplete: stripeAccount.onboardingComplete });
+  } catch (error) {
+      console.error('Error fetching Stripe account status:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+router.route('/service-provider/jobs/:jobId/create-stripe-product').post(authenticateToken, async (req, res) => { 
+  const serviceProviderId = req.user.userId;
+  const jobId = req.params.jobId;
+  try {
+    const jobClientData = await fetchJobDetailsWithClientData(jobId);
+    const serviceProviderData = await fetchServiceProviderById(serviceProviderId);
+
+    if (!serviceProviderData?.serviceProviderStripeAccountId || !jobClientData?.jobDetails || !jobClientData?.client) {
+      return res.status(400).json({
+        success: false,
+        message: 'Required data not found for creating product and price.',
+      });
+    }
+
+    const serviceProviderAccountId = serviceProviderData.serviceProviderStripeAccountId;
+    const { id: jobAdId, title, description, hourlyRate, duration, workingHours, paymentCurrency } = jobClientData.jobDetails;
+    const { id: clientId, email, firstName, lastName, companyName, type } = jobClientData.client;
+
+    const productPriceAndCustomer = await createProductPriceAndCustomer(serviceProviderAccountId, {
+      title,
+      description,
+      hourlyRate,
+      duration,
+      workingHours,
+      paymentCurrency,
+      email,
+      firstName,
+      lastName,
+      companyName,
+      type
+    });
+
+    const jobContractUpdated = await saveProductAndPriceByJobAdId(jobAdId, productPriceAndCustomer.price.id, productPriceAndCustomer.product.id);
+    const clientUpdated = await saveCustomerByClientId(clientId, productPriceAndCustomer.customer.id);
+
+    if (jobContractUpdated && clientUpdated) {
+      return res.status(201).json({
+        success: true,
+        message: 'Stripe product, price, and customer created and saved successfully.'
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update database records after creating Stripe entities.',
+      });
+    }
+  } catch (error) {
+    console.error('Error creating Stripe product and price:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
   }
 });
 

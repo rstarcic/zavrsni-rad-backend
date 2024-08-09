@@ -66,7 +66,7 @@ const Client = sequelize.define(
       allowNull: true,
     },
     type: {
-      type: DataTypes.ENUM("individual", "business"),
+      type: DataTypes.STRING,
       allowNull: false,
     },
     imageType: {
@@ -85,6 +85,10 @@ const Client = sequelize.define(
     status: {
       type: DataTypes.STRING,
       defaultValue: "active",
+    },
+    customerId: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {

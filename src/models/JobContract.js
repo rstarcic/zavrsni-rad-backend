@@ -30,6 +30,14 @@ const JobContract = sequelize.define(
         key: "id",
       },
     },
+    priceId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    productId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     }, 
 );
 

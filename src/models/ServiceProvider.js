@@ -87,7 +87,10 @@ const ServiceProvider = sequelize.define("ServiceProvider", {
   bankName: {
     type: DataTypes.STRING,
     allowNull: true
-  }
+  },
+  serviceProviderStripeAccountId: {
+    type: DataTypes.STRING,
+    allowNull: true }
 });
 
 export default ServiceProvider;

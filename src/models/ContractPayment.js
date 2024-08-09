@@ -13,12 +13,12 @@ const ContractPayment = sequelize.define(
       },
     },
     invoiceId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     sessionId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     amount: {
       type: DataTypes.DECIMAL(10, 2),
