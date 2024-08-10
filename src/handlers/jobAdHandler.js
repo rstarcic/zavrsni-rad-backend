@@ -241,7 +241,7 @@ async function fetchBasicCandidatesInfoForJob(jobId) {
       include: [
         {
           model: JobVacancy,
-          attributes:["applicationStatus"],
+          attributes:["applicationStatus", "jobStatus"],
           include: [
             {
               model: ServiceProvider,
@@ -253,7 +253,8 @@ async function fetchBasicCandidatesInfoForJob(jobId) {
     });
     const candidates = jobAd.JobVacancies.map(vacancy => ({
       serviceProvider: vacancy.ServiceProvider,
-      applicationStatus: vacancy.applicationStatus
+      applicationStatus: vacancy.applicationStatus,
+      jobStatus: vacancy.jobStatus
     }));
     console.log(candidates)
     return candidates;

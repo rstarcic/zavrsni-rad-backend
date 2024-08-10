@@ -8,6 +8,20 @@ import JobVacancy from '../models/JobVacancy.js';
 import { Op } from 'sequelize';
 import { updateJobAdStatus } from "../handlers/jobAdHandler.js";
 
+async function fetchDataFromJobContractsByJobAdId(jobAdId) {
+    try {
+        const jobContract = await JobContract.findOne({
+            where: { jobAdId }, 
+            attributes: ['id', 'priceId'] 
+          });
+          
+        return jobContract; 
+    } catch (error) {
+        console.error('Error fetching priceId from JobContracts:', error.message);
+        throw new Error('Error fetching priceId from JobContracts');
+  }
+}
+
 async function fetchClientDataForContract(jobId, serviceProviderId, clientId) {
     try {
         const serviceProviderData = await ServiceProvider.findByPk(serviceProviderId, { attributes: ['id'] });
@@ -498,5 +512,5 @@ function _calculateTotalPay(duration, hourlyRate, workingHours) {
 }
 
 export {
-    fetchClientDataForContract, generateClientContract, fetchContractByJobAdId, fetchContractByContractId, fetchAllDataForContract, generateServiceProviderContract, saveClientSignatureToDatabase, isContractSigned, fetchClientContracts
+    fetchClientDataForContract, generateClientContract, fetchContractByJobAdId, fetchContractByContractId, fetchAllDataForContract, generateServiceProviderContract, saveClientSignatureToDatabase, isContractSigned, fetchClientContracts, fetchDataFromJobContractsByJobAdId
 }

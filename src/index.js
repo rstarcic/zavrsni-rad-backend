@@ -14,7 +14,15 @@ import {
 import { updateOrCreateEducation, fetchEducationByUserId } from "./handlers/educationHandler.js";
 import { updateOrCreateWorkExperience, fetchWorkExperienceByUserId } from "./handlers/workExperienceHandler.js";
 import { updateOrCreateLanguage, fetchLanguagesByUserId } from "./handlers/languageHandler.js";
-import { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId, updateServiceProviderWithStripeAccountId } from "./handlers/userHandler.js";
+import {
+  fetchClientDataById,
+  fetchServiceProviderById,
+  fetchServiceProviderRoleById,
+  fetchClientRoleAndTypeById,
+  fetchBankDetailsDataByServiceProviderId,
+  updateBankDetailsDataByServiceProviderId,
+  updateServiceProviderWithStripeAccountId,
+} from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
 import {
   createJobAd,
@@ -31,10 +39,35 @@ import {
   fetchJobsSummariesForHomePage,
   fetchAllFilteredJobs,
   fetchApplicationStatus,
-  updateVacancyJobStatus
+  updateVacancyJobStatus,
 } from "./handlers/jobAdHandler.js";
-import { fetchClientDataForContract, fetchAllDataForContract, generateClientContract, generateServiceProviderContract, saveClientSignatureToDatabase, fetchContractByJobAdId, isContractSigned, fetchClientContracts, fetchContractByContractId } from "./handlers/contractHandler.js";
-import { createServiceProviderStripeAccount, getStripeAccountStatus, createProductPriceAndCustomer, saveProductAndPriceByJobAdId, saveCustomerByClientId } from "./handlers/paymentHandler.js"
+import {
+  fetchClientDataForContract,
+  fetchAllDataForContract,
+  generateClientContract,
+  generateServiceProviderContract,
+  saveClientSignatureToDatabase,
+  fetchContractByJobAdId,
+  isContractSigned,
+  fetchClientContracts,
+  fetchContractByContractId,
+  fetchDataFromJobContractsByJobAdId,
+} from "./handlers/contractHandler.js";
+import {
+  createServiceProviderStripeAccount,
+  getStripeAccountStatus,
+  createProductPriceAndCustomer,
+  saveProductAndPriceByJobAdId,
+  saveCustomerByClientId,
+  ensureCustomerEmail,
+  createInvoice,
+  createInvoiceItem,
+  finalizeInvoice,
+  createOrUpdateContractPayment,
+  fetchDataForCreatingProductAndInvoice,
+  fetchDataForPayment,
+  payInvoice
+} from "./handlers/paymentHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
@@ -305,45 +338,44 @@ router.route("/service-provider/account/deactivate").patch(authenticateToken, as
   }
 });
 
-router.get('/service-provider/jobs/bank-details', authenticateToken, async (req, res) => {
-  try {
-    const serviceProviderId = req.user.userId;
-    const hasBankDetails = await fetchBankDetailsDataByServiceProviderId(serviceProviderId);
-    if (hasBankDetails === true) {
-      res.json({ hasBankDetails });
-    } else if(hasBankDetails === false) {
-      res.json({ hasBankDetails });
+router
+  .get("/service-provider/jobs/bank-details", authenticateToken, async (req, res) => {
+    try {
+      const serviceProviderId = req.user.userId;
+      const hasBankDetails = await fetchBankDetailsDataByServiceProviderId(serviceProviderId);
+      if (hasBankDetails === true) {
+        res.json({ hasBankDetails });
+      } else if (hasBankDetails === false) {
+        res.json({ hasBankDetails });
+      } else {
+        res.status(404).json({ message: "User not found" });
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).send(error.message);
     }
-    else {
-      res.status(404).json({ message: 'User not found' });
+  })
+  .patch("/service-provider/jobs/bank-details", authenticateToken, async (req, res) => {
+    try {
+      const serviceProviderId = req.user.userId;
+      const { iban, bankName } = req.body;
+      const successfulUpdate = await updateBankDetailsDataByServiceProviderId(serviceProviderId, iban, bankName);
+      if (successfulUpdate) {
+        res.json({ successfulUpdate });
+      } else if (successfulUpdate === false) {
+        res.json({ successfulUpdate });
+      } else {
+        res.status(404).json({ message: "User not found" });
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).send(error.message);
     }
-  } catch (error) {
-    console.error(error);
-    res.status(500).send(error.message);
-  }
-})
-.patch('/service-provider/jobs/bank-details', authenticateToken, async (req, res) => {
-  try {
-    const serviceProviderId = req.user.userId;
-    const { iban, bankName } = req.body;
-    const successfulUpdate = await updateBankDetailsDataByServiceProviderId(serviceProviderId, iban, bankName);
-    if (successfulUpdate) {
-      res.json({ successfulUpdate });
-    } else if(successfulUpdate === false) {
-      res.json({ successfulUpdate });
-    }
-    else {
-      res.status(404).json({ message: 'User not found' });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).send(error.message);
-  }
-});
+  });
 // fetch job details with client data
 router.route("/service-provider/jobs/:jobId").get(authenticateToken, async (req, res) => {
   try {
-    console.log( req.params.jobId)
+    console.log(req.params.jobId);
     const jobId = req.params.jobId;
     const { jobDetails, client } = await fetchJobDetailsWithClientData(jobId);
     console.log(jobDetails);
@@ -388,8 +420,8 @@ router.route("/service-provider/jobs/:jobId/generate").get(authenticateToken, as
     const jobId = parseInt(req.params.jobId);
     const jobContract = await fetchContractByJobAdId(jobId);
     if (jobContract) {
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'inline; filename="contract.pdf"');
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", 'inline; filename="contract.pdf"');
       res.send(jobContract);
     }
   } catch (error) {
@@ -397,7 +429,6 @@ router.route("/service-provider/jobs/:jobId/generate").get(authenticateToken, as
     res.status(404).send({ error: `Failed to fetch contract: ${error.message}` });
   }
 });
-
 
 router.route("/service-provider/jobs/:jobId/client/:clientId/generate").post(authenticateToken, async (req, res) => {
   const jobId = req.params.jobId;
@@ -429,7 +460,7 @@ router.route("/service-provider/jobs/:jobId/contract/signed").get(authenticateTo
 router.route("/service-provider/applications/applied").get(authenticateToken, async (req, res) => {
   try {
     const serviceProviderId = req.user.userId;
-    const applications = await fetchAllJobAndApplicationData(serviceProviderId, 'neutral');
+    const applications = await fetchAllJobAndApplicationData(serviceProviderId, "neutral");
 
     console.log("Applications and job data fetched:", applications);
     res.status(200).json({ message: "Applied successfully", applications });
@@ -442,7 +473,7 @@ router.route("/service-provider/applications/applied").get(authenticateToken, as
 router.route("/service-provider/applications/current").get(authenticateToken, async (req, res) => {
   try {
     const serviceProviderId = req.user.userId;
-    const applications = await fetchAllJobAndApplicationData(serviceProviderId, 'ongoing');
+    const applications = await fetchAllJobAndApplicationData(serviceProviderId, "ongoing");
 
     console.log("Applications and job data fetched:", applications);
     res.status(200).json({ message: "Applied successfully", applications });
@@ -455,7 +486,7 @@ router.route("/service-provider/applications/current").get(authenticateToken, as
 router.route("/service-provider/applications/completed").get(authenticateToken, async (req, res) => {
   try {
     const serviceProviderId = req.user.userId;
-    const applications = await fetchAllJobAndApplicationData(serviceProviderId, 'completed');
+    const applications = await fetchAllJobAndApplicationData(serviceProviderId, "completed");
 
     console.log("Applications and job data fetched:", applications);
     res.status(200).json({ message: "Applied successfully", applications });
@@ -484,7 +515,7 @@ router.route("/service-provider/applications/:jobId/complete").patch(authenticat
   }
 });
 
-router.get('/service-provider/client/:clientId', authenticateToken, async (req, res) => {
+router.get("/service-provider/client/:clientId", authenticateToken, async (req, res) => {
   try {
     const user = await fetchClientDataById(req.params.clientId);
     if (user) {
@@ -501,68 +532,67 @@ router.get('/service-provider/client/:clientId', authenticateToken, async (req, 
   }
 });
 
-router.route('/service-provider/stripe-connected-account').post(authenticateToken, async (req, res) => {
+router.route("/service-provider/stripe-connected-account").post(authenticateToken, async (req, res) => {
   const serviceProviderId = req.user.userId;
   try {
-  const user = await fetchServiceProviderById(serviceProviderId);
-  if (!user) {
-    return res.status(404).json({ error: 'Service provider not found' });
-  }
+    const user = await fetchServiceProviderById(serviceProviderId);
+    if (!user) {
+      return res.status(404).json({ error: "Service provider not found" });
+    }
 
     const stripeData = await createServiceProviderStripeAccount(serviceProviderId, user.email, user.country);
 
-  if (stripeData && stripeData.accountId) {
-    const updatedServiceProvider = await updateServiceProviderWithStripeAccountId(serviceProviderId, stripeData.accountId);
-    
-    if (updatedServiceProvider) {
-      return res.status(201).json(stripeData);
-    } else {
-      return res.status(500).json({ error: 'Failed to update service provider with Stripe account ID' });
-    }
-  }
+    if (stripeData && stripeData.accountId) {
+      const updatedServiceProvider = await updateServiceProviderWithStripeAccountId(serviceProviderId, stripeData.accountId);
 
-    return res.status(500).json({ error: 'Failed to create Stripe connected account' });
-} catch (error) {
-  console.error('Error in Stripe account creation:', error.message);
-  res.status(500).json({ error: 'Internal server error' });
-}
+      if (updatedServiceProvider) {
+        return res.status(201).json(stripeData);
+      } else {
+        return res.status(500).json({ error: "Failed to update service provider with Stripe account ID" });
+      }
+    }
+
+    return res.status(500).json({ error: "Failed to create Stripe connected account" });
+  } catch (error) {
+    console.error("Error in Stripe account creation:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-router.route('/service-provider/stripe-status/:accountId').get(authenticateToken, async (req, res) => {
+router.route("/service-provider/stripe-status/:accountId").get(authenticateToken, async (req, res) => {
   const accountId = req.params.accountId;
   const serviceProviderId = req.user.userId;
   try {
-      const stripeAccount = await getStripeAccountStatus(serviceProviderId, accountId);
+    const stripeAccount = await getStripeAccountStatus(serviceProviderId, accountId);
 
-      if (!stripeAccount) {
-          return res.status(404).json({ error: 'Stripe account not found' });
-      }
+    if (!stripeAccount) {
+      return res.status(404).json({ error: "Stripe account not found" });
+    }
 
-      res.json({ onboardingComplete: stripeAccount.onboardingComplete });
+    res.json({ onboardingComplete: stripeAccount.onboardingComplete });
   } catch (error) {
-      console.error('Error fetching Stripe account status:', error.message);
-      res.status(500).json({ error: 'Internal server error' });
+    console.error("Error fetching Stripe account status:", error.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-
-router.route('/service-provider/jobs/:jobId/create-stripe-product').post(authenticateToken, async (req, res) => { 
+router.route("/service-provider/jobs/:jobId/create-stripe-product").post(authenticateToken, async (req, res) => {
   const serviceProviderId = req.user.userId;
   const jobId = req.params.jobId;
   try {
-    const jobClientData = await fetchJobDetailsWithClientData(jobId);
+    const jobClientData = await fetchDataForCreatingProductAndInvoice(jobId);
     const serviceProviderData = await fetchServiceProviderById(serviceProviderId);
 
-    if (!serviceProviderData?.serviceProviderStripeAccountId || !jobClientData?.jobDetails || !jobClientData?.client) {
+    if (!serviceProviderData?.serviceProviderStripeAccountId || !jobClientData?.job || !jobClientData?.client) {
       return res.status(400).json({
         success: false,
-        message: 'Required data not found for creating product and price.',
+        message: "Required data not found for creating product and price.",
       });
     }
 
     const serviceProviderAccountId = serviceProviderData.serviceProviderStripeAccountId;
-    const { id: jobAdId, title, description, hourlyRate, duration, workingHours, paymentCurrency } = jobClientData.jobDetails;
-    const { id: clientId, email, firstName, lastName, companyName, type } = jobClientData.client;
+    const { jobAdId, title, description, hourlyRate, duration, workingHours, paymentCurrency } = jobClientData.job;
+    const { clientId, email, firstName, lastName, companyName, type } = jobClientData.client;
 
     const productPriceAndCustomer = await createProductPriceAndCustomer(serviceProviderAccountId, {
       title,
@@ -575,7 +605,7 @@ router.route('/service-provider/jobs/:jobId/create-stripe-product').post(authent
       firstName,
       lastName,
       companyName,
-      type
+      type,
     });
 
     const jobContractUpdated = await saveProductAndPriceByJobAdId(jobAdId, productPriceAndCustomer.price.id, productPriceAndCustomer.product.id);
@@ -584,21 +614,66 @@ router.route('/service-provider/jobs/:jobId/create-stripe-product').post(authent
     if (jobContractUpdated && clientUpdated) {
       return res.status(201).json({
         success: true,
-        message: 'Stripe product, price, and customer created and saved successfully.'
+        message: "Stripe product, price, and customer created and saved successfully.",
       });
     } else {
       return res.status(500).json({
         success: false,
-        message: 'Failed to update database records after creating Stripe entities.',
+        message: "Failed to update database records after creating Stripe entities.",
       });
     }
   } catch (error) {
-    console.error('Error creating Stripe product and price:', error.message);
+    console.error("Error creating Stripe product and price:", error.message);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: "Internal server error",
       error: error.message,
     });
+  }
+});
+
+router.route("/service-provider/jobs/:jobId/client/:clientId/create-invoice").post(authenticateToken, async (req, res) => {
+  const serviceProviderId = req.user.userId;
+  const jobId = req.params.jobId;
+  try {
+    const jobClientData = await fetchDataForCreatingProductAndInvoice(jobId);
+    const jobContractData = await fetchDataFromJobContractsByJobAdId(jobId);
+    const serviceProviderData = await fetchServiceProviderById(serviceProviderId);
+
+    if (
+      !serviceProviderData?.serviceProviderStripeAccountId ||
+      !jobContractData.id ||
+      !jobContractData.priceId ||
+      !jobClientData?.job ||
+      !jobClientData?.client
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Required data not found for creating invoice.",
+      });
+    }
+
+    const serviceProviderAccountId = serviceProviderData.serviceProviderStripeAccountId;
+    const { jobAdId, title, description } = jobClientData.job;
+    const { id: jobContractId, priceId } = jobContractData;
+    const { customerId, email } = jobClientData.client;
+    console.log(jobClientData.client);
+
+    const customer = await ensureCustomerEmail(customerId, email, serviceProviderAccountId);
+    const invoice = await createInvoice(customer.id, title, jobAdId, serviceProviderAccountId);
+    const invoiceItem = await createInvoiceItem(customer.id, priceId, description, invoice.id, serviceProviderAccountId);
+    const finalizedInvoice = await finalizeInvoice(invoice.id, serviceProviderAccountId);
+
+    const invoiceSaved = await createOrUpdateContractPayment(jobContractId, finalizedInvoice.id, finalizedInvoice.amount_due);
+
+    if (invoiceSaved) {
+      res.status(201).send({ success: true, invoice: finalizedInvoice });
+    } else {
+      res.status(500).send({ success: false, message: "Failed to update JobPayment with invoiceId" });
+    }
+  } catch (error) {
+    console.error("Error creating and sending invoice:", error);
+    res.status(500).send({ success: false, message: "Failed to create and send invoice", error });
   }
 });
 
@@ -834,7 +909,7 @@ router.route("/client/jobs/:jobId/candidates").get(authenticateToken, async (req
       }
     }
     res.status(200).json({
-    candidates
+      candidates,
     });
   } catch (error) {
     console.error(error);
@@ -842,13 +917,13 @@ router.route("/client/jobs/:jobId/candidates").get(authenticateToken, async (req
   }
 });
 
-router.get('/client/candidates/:candidateId', authenticateToken, async (req, res) => {
+router.get("/client/candidates/:candidateId", authenticateToken, async (req, res) => {
   try {
     const serviceProviderId = req.params.candidateId;
     const user = await fetchServiceProviderById(serviceProviderId);
 
     if (!user) {
-      return res.status(404).json({ message: 'Service provider not found' });
+      return res.status(404).json({ message: "Service provider not found" });
     }
 
     if (user.profileImage && user.imageType) {
@@ -867,7 +942,7 @@ router.get('/client/candidates/:candidateId', authenticateToken, async (req, res
       languages,
     });
   } catch (error) {
-    console.error('Error fetching service provider data:', error);
+    console.error("Error fetching service provider data:", error);
     res.status(500).send(error.message);
   }
 });
@@ -878,7 +953,7 @@ router.route("/client/jobs/:jobId/candidates/:candidateId/generate").post(authen
   const clientId = req.user.userId;
   const { signature } = req.body;
   try {
-   await saveClientSignatureToDatabase(signature, jobId)
+    await saveClientSignatureToDatabase(signature, jobId);
     const contractData = await fetchClientDataForContract(jobId, serviceProviderId, clientId);
     console.log(contractData);
     await generateClientContract(res, signature, contractData);
@@ -886,7 +961,7 @@ router.route("/client/jobs/:jobId/candidates/:candidateId/generate").post(authen
     console.error("Error fetching data for contract:", error);
     res.status(400).send({ error: "Failed to fetch data for contract" });
   }
-}); 
+});
 
 router.route("/client/jobs/:jobId/candidates/:candidateId/application-status").get(authenticateToken, async (req, res) => {
   const jobId = req.params.jobId;
@@ -903,7 +978,6 @@ router.route("/client/jobs/:jobId/candidates/:candidateId/application-status").g
   }
 });
 
-
 router.route("/client/contracts").get(authenticateToken, async (req, res) => {
   const clientId = req.user.userId;
   try {
@@ -917,12 +991,12 @@ router.route("/client/contracts").get(authenticateToken, async (req, res) => {
 });
 
 router.route("/client/contracts/:contractId/download").get(authenticateToken, async (req, res) => {
-const contractId = req.params?.contractId
+  const contractId = req.params?.contractId;
   try {
     const contract = await fetchContractByContractId(contractId);
     if (contract) {
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'inline; filename="contract.pdf"');
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", 'inline; filename="contract.pdf"');
       res.send(contract);
     }
   } catch (error) {
@@ -931,7 +1005,29 @@ const contractId = req.params?.contractId
   }
 });
 
-router.get('/client/client-profile/:clientId', authenticateToken, async (req, res) => {
+router.route("/client/jobs/:jobId/pay-invoice").post(authenticateToken, async (req, res) => {
+  const jobId = req.params.jobId;
+  const clientId = req.user.userId;
+  try {
+    const data = await fetchDataForPayment(jobId, clientId);
+    if (!data || !data.serviceProviderAccountId || !data.customerId || !data.priceId || !data.invoiceId) {
+      return res.status(400).json({ success: false, message: "Required data for payment is missing." });
+    }
+
+    const paymentData = await payInvoice(data.serviceProviderAccountId, data.customerId, data.priceId, data.invoiceId);
+
+    if (paymentData && paymentData.url) {
+      return res.status(200).json({ success: true, url: paymentData.url });
+  } else {
+      return res.status(500).json({ success: false, message: "Failed to create Stripe payment session." });
+  }
+} catch (error) {
+  console.error("Error processing payment:", error.message);
+  return res.status(500).json({ success: false, message: "Internal server error.", error: error.message });
+}
+});
+
+router.get("/client/client-profile/:clientId", authenticateToken, async (req, res) => {
   try {
     const user = await fetchClientDataById(req.params.clientId);
     if (user) {

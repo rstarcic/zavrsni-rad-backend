@@ -4,6 +4,9 @@ import iso from 'iso-3166-1-alpha-2';
 import ServiceProvider from '../models/ServiceProvider.js';
 import Client from '../models/Client.js';
 import JobContract from '../models/JobContract.js';
+import ContractPayment from '../models/ContractPayment.js';
+import JobAd from '../models/JobAd.js';
+import JobVacancy from '../models/JobVacancy.js';
 
 async function createServiceProviderStripeAccount(serviceProviderId, email, country) {
     try {
@@ -138,6 +141,222 @@ async function saveCustomerByClientId(clientId, customerId) {
     return true;
 }
 
+async function ensureCustomerEmail(customerId, customerEmail, serviceProviderAccountId) {
+    try {
+        console.log('Fetching customer with ID:', customerId);
+      let customer = await stripe.customers.retrieve(customerId, {
+        stripeAccount: serviceProviderAccountId
+      });
+      if (customer.email !== customerEmail) {
+        customer = await stripe.customers.update(customerId, {
+          email: customerEmail
+        }, {
+          stripeAccount: serviceProviderAccountId
+        });
+      }
+      return customer;
+    } catch (error) {
+      throw new Error('Error retrieving or updating customer: ' + error.message);
+    }
+}
+
+async function createInvoice(customerId, jobTitle, jobAdId, serviceProviderAccountId) {
+    try {
+    const invoiceDescription = `Invoice for Job Service - ${jobTitle} with job ID: ${jobAdId}`;
+    return await stripe.invoices.create({
+      customer: customerId,
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      description: invoiceDescription,
+      auto_advance: false,
+    }, {
+      stripeAccount: serviceProviderAccountId
+    });
+  } catch (error) {
+    throw new Error('Error creating invoice: ' + error.message);
+  }
+}
+
+async function createInvoiceItem(customerId, priceId, jobDescription, invoiceId, serviceProviderAccountId) {
+  try {
+    return await stripe.invoiceItems.create({
+      customer: customerId,
+      price: priceId,
+      invoice: invoiceId,
+      description: jobDescription,
+    }, {
+      stripeAccount: serviceProviderAccountId
+    });
+  } catch (error) {
+    throw new Error('Error creating invoice item: ' + error.message);
+  }
+}
+
+async function finalizeInvoice(invoiceId, serviceProviderAccountId) {
+  try {
+    return await stripe.invoices.finalizeInvoice(invoiceId, {
+      stripeAccount: serviceProviderAccountId
+    });
+  } catch (error) {
+    throw new Error('Error finalizing invoice: ' + error.message);
+  }
+}
+
+async function createOrUpdateContractPayment(jobContractId, invoiceId, amount) {
+    try {
+      const [contractPayment, created] = await ContractPayment.findOrCreate({
+        where: { jobContractId },
+        defaults: {
+          invoiceId,
+          amount, 
+          status: 'pending',
+        },
+      });
+  
+      if (!created) {
+        contractPayment.invoiceId = invoiceId;
+        contractPayment.amount = amount;
+        contractPayment.status = 'pending';
+        await contractPayment.save();
+      }
+  
+      return true;
+    } catch (error) {
+      console.error('Error creating or updating ContractPayment:', error.message);
+      return false;
+    }
+}
+  
+async function fetchDataForCreatingProductAndInvoice(jobAdId) {
+    try {
+      const job = await JobAd.findByPk(jobAdId, {
+        attributes: ["id", "title", "description", "hourlyRate", "duration", "workingHours", "paymentCurrency"],
+        include: {
+          model: Client,
+          attributes: ["id", "email", "firstName", "lastName", "companyName", "type", "customerId"],
+        },
+      });
+  
+      if (!job) {
+        throw new Error("Job not found");
+      }
+  
+      const clientDetails = {
+        clientId: job.Client.id,
+        email: job.Client.email,
+        firstName: job.Client.firstName,
+        lastName: job.Client.lastName,
+        companyName: job.Client.companyName,
+        type: job.Client.type,
+        customerId: job.Client.customerId,
+      };
+  
+      const jobDetails = {
+        jobAdId: job.id,
+        title: job.title,
+        description: job.description,
+        hourlyRate: job.hourlyRate,
+        duration: job.duration,
+        workingHours: job.workingHours,
+        paymentCurrency: job.paymentCurrency,
+      };
+  
+      return {
+        job: jobDetails,
+        client: clientDetails,
+      };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+}
+
+async function fetchDataForPayment(jobAdId, clientId) {
+    try {
+        const client = await Client.findOne({
+            where: { id: clientId },
+            attributes: ['customerId']
+        });
+
+        const jobVacancy = await JobVacancy.findOne({
+            where: { jobAdId },
+            attributes: ['serviceProviderId'],  
+            include: [
+                {
+                    model: ServiceProvider,
+                    attributes: ['serviceProviderStripeAccountId'],
+                }
+            ]
+        });
+        
+        if (!jobVacancy) {
+            throw new Error('Job vacancy not found');
+        }
+
+        const serviceProviderAccountId = jobVacancy.ServiceProvider?.serviceProviderStripeAccountId;
+
+        if (!serviceProviderAccountId) {
+            throw new Error('ServiceProvider not found or missing Stripe Account ID');
+        }
+        
+        const jobContract = await JobContract.findOne({
+            where: { jobAdId: jobAdId },
+            attributes: ['id', 'priceId']
+        });
+        
+        console.log(jobContract);
+        const contractPayment = await ContractPayment.findOne({
+            where: { jobContractId: jobContract.id },
+            attributes: ['invoiceId']
+        });
+        if (!jobContract) {
+            throw new Error('Job contract not found for the specified job advertisement');
+        }
+
+        return {
+            customerId: client.customerId, 
+            priceId: jobContract.priceId,
+            invoiceId: contractPayment?.invoiceId || null,
+            serviceProviderAccountId,
+        };
+    } catch (error) {
+        console.error('Error fetching data for payment:', error.message);
+        throw new Error('Error fetching data for payment');
+    }
+}
+
+async function payInvoice(serviceProviderAccountId, customerId, priceId, invoiceId) {
+    try {
+        const session = await stripe.checkout.sessions.create(
+            {
+                mode: "payment",
+                customer: customerId,
+                line_items: [
+                    {
+                        price: priceId,
+                        quantity: 1,
+                    },
+                ],
+                payment_intent_data: {
+                    application_fee_amount: 123,
+                    description: `Payment for invoice ${invoiceId}`,
+                },
+                metadata: {
+                    invoice_id: invoiceId,
+                },
+                success_url: "http://localhost:8080/payment-status?session_id={CHECKOUT_SESSION_ID}",
+                cancel_url: "http://localhost:8080/payment-status",
+            },
+            {
+                stripeAccount: serviceProviderAccountId,
+            }
+        );
+        return { session_id: session.id, url: session.url };
+    } catch (error) {
+        console.error("Error creating Stripe session:", error.message);
+        throw new Error("Failed to create Stripe payment session.");
+    }
+};
+
 async function _calculateTotalPay(duration, hourlyRate, workingHours) {
     const durationRegex = /^(\d+)\s*(day|week|month)s?$/;
     const match = duration.match(durationRegex);
@@ -166,4 +385,5 @@ async function _calculateTotalPay(duration, hourlyRate, workingHours) {
 
     return totalHours * hourlyRate;
 }
-export { createServiceProviderStripeAccount, getStripeAccountStatus, createProductPriceAndCustomer, saveProductAndPriceByJobAdId, saveCustomerByClientId }
+
+export { createServiceProviderStripeAccount, getStripeAccountStatus, createProductPriceAndCustomer, saveProductAndPriceByJobAdId, saveCustomerByClientId, ensureCustomerEmail, createInvoice, createInvoiceItem, finalizeInvoice, createOrUpdateContractPayment, fetchDataForCreatingProductAndInvoice, fetchDataForPayment, payInvoice }
