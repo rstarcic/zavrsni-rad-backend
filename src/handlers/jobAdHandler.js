@@ -358,6 +358,20 @@ async function updateVacancyJobStatus(serviceProviderId, jobAdId) {
   }
 }
 
+async function updateJobVacanciesWithStripeAccountId(serviceProviderId, jobAdId, stripeAccountId) {
+  try {
+    const vacancy = await JobVacancy.findOne({ where: { serviceProviderId, jobAdId } })
+    if (!vacancy) {
+      throw new Error('Service provider not found');
+    }
+    vacancy.serviceProviderStripeAccountId  = stripeAccountId;
+    await vacancy.save(); 
+    return true;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
 export {
   createJobAd,
   fetchAllJobSummaryDataByClientId,
@@ -374,4 +388,5 @@ export {
   fetchAllFilteredJobs,
   fetchApplicationStatus,
   updateVacancyJobStatus,
+  updateJobVacanciesWithStripeAccountId
 };

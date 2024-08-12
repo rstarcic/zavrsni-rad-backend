@@ -25,6 +25,10 @@ const JobVacancy = sequelize.define('JobVacancy', {
             key: 'id',
         },
     },
+    serviceProviderStripeAccountId: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
     serviceProviderId: {
         type: DataTypes.INTEGER,
         allowNull: false,

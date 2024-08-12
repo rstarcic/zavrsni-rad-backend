@@ -1,4 +1,6 @@
 import Client from "../models/Client.js";
+import JobAd from "../models/JobAd.js";
+import JobVacancy from "../models/JobVacancy.js";
 import ServiceProvider from "../models/ServiceProvider.js";
 
 async function fetchClientDataById(clientId) {
@@ -86,18 +88,37 @@ async function updateBankDetailsDataByServiceProviderId(serviceProviderId, iban,
   }
 }
 
-async function updateServiceProviderWithStripeAccountId(serviceProviderId, stripeAccountId) {
+async function fetchServiceProviderAccountIdByClientId(clientId, jobId) {
   try {
-    const serviceProvider = await ServiceProvider.findByPk(serviceProviderId);
-    if (!serviceProvider) {
-      throw new Error('Service provider not found');
+
+    const jobAd = await JobAd.findOne({
+      where: {
+        id: jobId,
+      },
+      attributes: [],
+      include: [
+        {
+          model: JobVacancy,
+          attributes: ["serviceProviderStripeAccountId"], 
+        },
+      ],
+    });
+
+    if (!jobAd || !jobAd.JobVacancies || jobAd.JobVacancies.length === 0) {
+      console.log('No JobVacancies found.');
+      return null;
     }
-    serviceProvider.serviceProviderStripeAccountId  = stripeAccountId;
-    await serviceProvider.save(); 
-    return true;
+
+    const serviceProviderStripeAccountId = jobAd.JobVacancies[0].serviceProviderStripeAccountId;
+
+    console.log('ServiceProviderStripeAccountId:', serviceProviderStripeAccountId);
+    return { serviceProviderStripeAccountId };
+
   } catch (error) {
-    throw new Error(error.message);
+    console.error('Error fetching ServiceProviderStripeAccountId:', error.message);
+    throw new Error('Failed to fetch ServiceProviderStripeAccountId');
   }
 }
-
-export { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId, updateServiceProviderWithStripeAccountId };
+    
+        
+export { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId, fetchServiceProviderAccountIdByClientId };

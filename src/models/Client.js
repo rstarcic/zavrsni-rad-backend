@@ -85,11 +85,7 @@ const Client = sequelize.define(
     status: {
       type: DataTypes.STRING,
       defaultValue: "active",
-    },
-    customerId: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
+    }
   },
   {
     scopes: {

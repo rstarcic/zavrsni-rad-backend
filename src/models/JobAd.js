@@ -82,6 +82,10 @@ const JobAd = sequelize.define('JobAd', {
             key: 'id',
         },
     },
+    customerId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
 }, {
     timestamps: true,
 });

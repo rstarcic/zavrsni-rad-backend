@@ -21,7 +21,7 @@ import {
   fetchClientRoleAndTypeById,
   fetchBankDetailsDataByServiceProviderId,
   updateBankDetailsDataByServiceProviderId,
-  updateServiceProviderWithStripeAccountId,
+  fetchServiceProviderAccountIdByClientId
 } from "./handlers/userHandler.js";
 import { checkCurrentAndUpdateNewPassword, deleteAccount, deactivateAccount, reactivateAccont } from "./handlers/accountHandler.js";
 import {
@@ -40,6 +40,7 @@ import {
   fetchAllFilteredJobs,
   fetchApplicationStatus,
   updateVacancyJobStatus,
+  updateJobVacanciesWithStripeAccountId,
 } from "./handlers/jobAdHandler.js";
 import {
   fetchClientDataForContract,
@@ -58,7 +59,7 @@ import {
   getStripeAccountStatus,
   createProductPriceAndCustomer,
   saveProductAndPriceByJobAdId,
-  saveCustomerByClientId,
+  saveCustomerByClientAndJobId,
   ensureCustomerEmail,
   createInvoice,
   createInvoiceItem,
@@ -66,13 +67,14 @@ import {
   createOrUpdateContractPayment,
   fetchDataForCreatingProductAndInvoice,
   fetchDataForPayment,
-  payInvoice
+  payInvoice,
+  checkIfInvoicePaid,
+  fetchServiceProviderStripeAccount
 } from "./handlers/paymentHandler.js";
 import ServiceProvider from "./models/ServiceProvider.js";
 import Client from "./models/Client.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
 import dotenv from "dotenv";
-import { Console } from "console";
 dotenv.config({ path: "../.env" });
 
 const app = express();
@@ -532,8 +534,9 @@ router.get("/service-provider/client/:clientId", authenticateToken, async (req, 
   }
 });
 
-router.route("/service-provider/stripe-connected-account").post(authenticateToken, async (req, res) => {
+router.route("/service-provider/jobs/:jobId/stripe-connected-account").post(authenticateToken, async (req, res) => {
   const serviceProviderId = req.user.userId;
+  const jobId = req.params.jobId;
   try {
     const user = await fetchServiceProviderById(serviceProviderId);
     if (!user) {
@@ -543,9 +546,9 @@ router.route("/service-provider/stripe-connected-account").post(authenticateToke
     const stripeData = await createServiceProviderStripeAccount(serviceProviderId, user.email, user.country);
 
     if (stripeData && stripeData.accountId) {
-      const updatedServiceProvider = await updateServiceProviderWithStripeAccountId(serviceProviderId, stripeData.accountId);
+      const updatedJobVacancy = await updateJobVacanciesWithStripeAccountId(serviceProviderId, jobId, stripeData.accountId);
 
-      if (updatedServiceProvider) {
+      if (updatedJobVacancy) {
         return res.status(201).json(stripeData);
       } else {
         return res.status(500).json({ error: "Failed to update service provider with Stripe account ID" });
@@ -581,20 +584,19 @@ router.route("/service-provider/jobs/:jobId/create-stripe-product").post(authent
   const jobId = req.params.jobId;
   try {
     const jobClientData = await fetchDataForCreatingProductAndInvoice(jobId);
-    const serviceProviderData = await fetchServiceProviderById(serviceProviderId);
+    const serviceProviderStripeAccountId = await fetchServiceProviderStripeAccount(serviceProviderId, jobId);
 
-    if (!serviceProviderData?.serviceProviderStripeAccountId || !jobClientData?.job || !jobClientData?.client) {
+    if (!serviceProviderStripeAccountId || !jobClientData?.job || !jobClientData?.client) {
       return res.status(400).json({
         success: false,
         message: "Required data not found for creating product and price.",
       });
     }
 
-    const serviceProviderAccountId = serviceProviderData.serviceProviderStripeAccountId;
     const { jobAdId, title, description, hourlyRate, duration, workingHours, paymentCurrency } = jobClientData.job;
     const { clientId, email, firstName, lastName, companyName, type } = jobClientData.client;
 
-    const productPriceAndCustomer = await createProductPriceAndCustomer(serviceProviderAccountId, {
+    const productPriceAndCustomer = await createProductPriceAndCustomer(serviceProviderStripeAccountId, {
       title,
       description,
       hourlyRate,
@@ -608,8 +610,10 @@ router.route("/service-provider/jobs/:jobId/create-stripe-product").post(authent
       type,
     });
 
+    console.log("jobAdId", jobAdId);
+    console.log("jobId", jobId);
     const jobContractUpdated = await saveProductAndPriceByJobAdId(jobAdId, productPriceAndCustomer.price.id, productPriceAndCustomer.product.id);
-    const clientUpdated = await saveCustomerByClientId(clientId, productPriceAndCustomer.customer.id);
+    const clientUpdated = await saveCustomerByClientAndJobId(clientId, jobAdId, productPriceAndCustomer.customer.id);
 
     if (jobContractUpdated && clientUpdated) {
       return res.status(201).json({
@@ -638,10 +642,10 @@ router.route("/service-provider/jobs/:jobId/client/:clientId/create-invoice").po
   try {
     const jobClientData = await fetchDataForCreatingProductAndInvoice(jobId);
     const jobContractData = await fetchDataFromJobContractsByJobAdId(jobId);
-    const serviceProviderData = await fetchServiceProviderById(serviceProviderId);
+    const serviceProviderStripeAccountId = await fetchServiceProviderStripeAccount(serviceProviderId, jobId);
 
     if (
-      !serviceProviderData?.serviceProviderStripeAccountId ||
+      !serviceProviderStripeAccountId||
       !jobContractData.id ||
       !jobContractData.priceId ||
       !jobClientData?.job ||
@@ -653,18 +657,17 @@ router.route("/service-provider/jobs/:jobId/client/:clientId/create-invoice").po
       });
     }
 
-    const serviceProviderAccountId = serviceProviderData.serviceProviderStripeAccountId;
-    const { jobAdId, title, description } = jobClientData.job;
+    const { jobAdId, title, description, customerId } = jobClientData.job;
     const { id: jobContractId, priceId } = jobContractData;
-    const { customerId, email } = jobClientData.client;
+    const { email } = jobClientData.client;
     console.log(jobClientData.client);
 
-    const customer = await ensureCustomerEmail(customerId, email, serviceProviderAccountId);
-    const invoice = await createInvoice(customer.id, title, jobAdId, serviceProviderAccountId);
-    const invoiceItem = await createInvoiceItem(customer.id, priceId, description, invoice.id, serviceProviderAccountId);
-    const finalizedInvoice = await finalizeInvoice(invoice.id, serviceProviderAccountId);
+    const customer = await ensureCustomerEmail(customerId, email, serviceProviderStripeAccountId);
+    const invoice = await createInvoice(customer.id, title, jobAdId, serviceProviderStripeAccountId);
+    const invoiceItem = await createInvoiceItem(customer.id, priceId, description, invoice.id, serviceProviderStripeAccountId);
+    const finalizedInvoice = await finalizeInvoice(invoice.id, serviceProviderStripeAccountId);
 
-    const invoiceSaved = await createOrUpdateContractPayment(jobContractId, finalizedInvoice.id, finalizedInvoice.amount_due);
+    const invoiceSaved = await createOrUpdateContractPayment(jobContractId, invoice.id, invoice.amount_due);
 
     if (invoiceSaved) {
       res.status(201).send({ success: true, invoice: finalizedInvoice });
@@ -1014,10 +1017,10 @@ router.route("/client/jobs/:jobId/pay-invoice").post(authenticateToken, async (r
       return res.status(400).json({ success: false, message: "Required data for payment is missing." });
     }
 
-    const paymentData = await payInvoice(data.serviceProviderAccountId, data.customerId, data.priceId, data.invoiceId);
+    const paymentData = await payInvoice(jobId, data.type, data.serviceProviderAccountId, data.customerId, data.priceId, data.invoiceId);
 
     if (paymentData && paymentData.url) {
-      return res.status(200).json({ success: true, url: paymentData.url });
+      return res.status(200).json({ success: true, url: paymentData.url, jobId: jobId});
   } else {
       return res.status(500).json({ success: false, message: "Failed to create Stripe payment session." });
   }
@@ -1025,6 +1028,28 @@ router.route("/client/jobs/:jobId/pay-invoice").post(authenticateToken, async (r
   console.error("Error processing payment:", error.message);
   return res.status(500).json({ success: false, message: "Internal server error.", error: error.message });
 }
+});
+
+router.route('/client/confirm-payment').post(authenticateToken, async (req, res) => {
+  const sessionId = req.body.session_id;
+  const clientId = req.user.userId;
+  const jobId = req.body.jobId;
+  try {
+    const serviceProviderAccount = await fetchServiceProviderAccountIdByClientId(clientId, jobId);
+    const result = checkIfInvoicePaid(serviceProviderAccount, sessionId)
+    if (result.status === 'paid') {
+      res.status(200).json({ success: true, message: 'Payment confirmed and invoice paid.' });
+    } else if (result.status === 'open') {
+      res.status(400).json({ success: false, message: 'Payment not completed or invoice is still open.' });
+    } else if (result.status === 'error') {
+      res.status(500).json({ success: false, message: `Error: ${result.message}` });
+    } else {
+      res.status(400).json({ success: false, message: `Unexpected invoice status: ${result.status}` });
+    }
+  } catch (error) {
+    console.error('Error confirming payment:', error);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
 });
 
 router.get("/client/client-profile/:clientId", authenticateToken, async (req, res) => {
