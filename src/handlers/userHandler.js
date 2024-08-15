@@ -88,7 +88,7 @@ async function updateBankDetailsDataByServiceProviderId(serviceProviderId, iban,
   }
 }
 
-async function fetchServiceProviderAccountIdByClientId(clientId, jobId) {
+async function fetchServiceProviderAccountIdByJobId(jobId) {
   try {
 
     const jobAd = await JobAd.findOne({
@@ -121,4 +121,4 @@ async function fetchServiceProviderAccountIdByClientId(clientId, jobId) {
 }
     
         
-export { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId, fetchServiceProviderAccountIdByClientId };
+export { fetchClientDataById, fetchServiceProviderById, fetchServiceProviderRoleById, fetchClientRoleAndTypeById, fetchBankDetailsDataByServiceProviderId, updateBankDetailsDataByServiceProviderId, fetchServiceProviderAccountIdByJobId };

@@ -7,6 +7,10 @@ import JobContract from "../models/JobContract.js";
 import ContractPayment from "../models/ContractPayment.js";
 import JobAd from "../models/JobAd.js";
 import JobVacancy from "../models/JobVacancy.js";
+import PDFDocument from "pdfkit";
+import { Buffer } from "buffer";
+import { Op } from "sequelize";
+import { format } from "date-fns";
 
 async function createServiceProviderStripeAccount(serviceProviderId, email, country) {
   try {
@@ -45,9 +49,9 @@ async function getStripeAccountStatus(serviceProviderId, serviceProviderStripeAc
     if (serviceProviderAccount) {
       return { onboardingComplete: true };
     } else {
-        return { onboardingComplete: false };
-      }
-    } catch (error) {
+      return { onboardingComplete: false };
+    }
+  } catch (error) {
     console.error("Error in getStripeAccountStatus:", error.message);
     throw new Error("Error fetching service provider status");
   }
@@ -122,7 +126,7 @@ async function saveCustomerByClientAndJobId(clientId, jobAdId, customerId) {
     {
       where: {
         id: jobAdId,
-        clientId
+        clientId,
       },
     }
   );
@@ -134,77 +138,6 @@ async function saveCustomerByClientAndJobId(clientId, jobAdId, customerId) {
 
   console.log(`Client updated with customerId for clientId ${clientId} in job ads`);
   return true;
-}
-
-async function ensureCustomerEmail(customerId, customerEmail, serviceProviderAccountId) {
-  try {
-    console.log("Fetching customer with ID:", customerId);
-    let customer = await stripe.customers.retrieve(customerId, {
-      stripeAccount: serviceProviderAccountId,
-    });
-    if (customer.email !== customerEmail) {
-      customer = await stripe.customers.update(
-        customerId,
-        {
-          email: customerEmail,
-        },
-        {
-          stripeAccount: serviceProviderAccountId,
-        }
-      );
-    }
-    return customer;
-  } catch (error) {
-    throw new Error("Error retrieving or updating customer: " + error.message);
-  }
-}
-
-async function createInvoice(customerId, jobTitle, jobAdId, serviceProviderAccountId) {
-  try {
-    const invoiceDescription = `Invoice for Job Service - ${jobTitle} with job ID: ${jobAdId}`;
-    return await stripe.invoices.create(
-      {
-        customer: customerId,
-        collection_method: "send_invoice",
-        days_until_due: 30,
-        description: invoiceDescription,
-        auto_advance: false,
-      },
-      {
-        stripeAccount: serviceProviderAccountId,
-      }
-    );
-  } catch (error) {
-    throw new Error("Error creating invoice: " + error.message);
-  }
-}
-
-async function createInvoiceItem(customerId, priceId, jobDescription, invoiceId, serviceProviderAccountId) {
-  try {
-    return await stripe.invoiceItems.create(
-      {
-        customer: customerId,
-        price: priceId,
-        invoice: invoiceId,
-        description: jobDescription,
-      },
-      {
-        stripeAccount: serviceProviderAccountId,
-      }
-    );
-  } catch (error) {
-    throw new Error("Error creating invoice item: " + error.message);
-  }
-}
-
-async function finalizeInvoice(invoiceId, serviceProviderAccountId) {
-  try {
-    return await stripe.invoices.finalizeInvoice(invoiceId, {
-      stripeAccount: serviceProviderAccountId,
-    });
-  } catch (error) {
-    throw new Error("Error finalizing invoice: " + error.message);
-  }
 }
 
 async function createOrUpdateContractPayment(jobContractId, invoiceId, amount) {
@@ -221,7 +154,7 @@ async function createOrUpdateContractPayment(jobContractId, invoiceId, amount) {
     if (!created) {
       contractPayment.invoiceId = invoiceId;
       contractPayment.amount = amount;
-      contractPayment.status = "pending";
+      contractPayment.status = "completed";
       await contractPayment.save();
     }
 
@@ -232,7 +165,7 @@ async function createOrUpdateContractPayment(jobContractId, invoiceId, amount) {
   }
 }
 
-async function fetchDataForCreatingProductAndInvoice(jobAdId) {
+async function fetchDataForCreatingProductAndPrice(jobAdId) {
   try {
     const job = await JobAd.findByPk(jobAdId, {
       attributes: ["id", "title", "description", "hourlyRate", "duration", "workingHours", "paymentCurrency", "customerId"],
@@ -277,11 +210,11 @@ async function fetchDataForCreatingProductAndInvoice(jobAdId) {
 
 async function fetchServiceProviderStripeAccount(serviceProviderId, jobAdId) {
   try {
-    const serviceProvider = await JobVacancy.findOne({ where: { serviceProviderId, jobAdId }, attributes: ["serviceProviderStripeAccountId"] })
+    const serviceProvider = await JobVacancy.findOne({ where: { serviceProviderId, jobAdId }, attributes: ["serviceProviderStripeAccountId"] });
     if (serviceProvider) {
-      return serviceProvider.serviceProviderStripeAccountId; 
+      return serviceProvider.serviceProviderStripeAccountId;
     } else {
-      return null; 
+      return null;
     }
   } catch (error) {
     console.error("Error fetching service provider Stripe account:", error.message);
@@ -296,10 +229,10 @@ async function fetchDataForPayment(jobAdId, clientId) {
       attributes: ["type"],
     });
 
-    const jobAd = await JobAd.findOne({ where: { id: jobAdId }, attributes: ["customerId"] });
+    const jobAd = await JobAd.findOne({ where: { id: jobAdId }, attributes: ["title", "customerId"] });
 
     const jobVacancy = await JobVacancy.findOne({
-      where: { jobAdId, jobStatus: 'completed' },
+      where: { jobAdId, jobStatus: "completed" },
       attributes: ["serviceProviderStripeAccountId"],
     });
 
@@ -312,10 +245,6 @@ async function fetchDataForPayment(jobAdId, clientId) {
       attributes: ["id", "priceId"],
     });
 
-    const contractPayment = await ContractPayment.findOne({
-      where: { jobContractId: jobContract.id },
-      attributes: ["invoiceId"],
-    });
     if (!jobContract) {
       throw new Error("Job contract not found for the specified job advertisement");
     }
@@ -324,7 +253,7 @@ async function fetchDataForPayment(jobAdId, clientId) {
       type: client.type,
       customerId: jobAd.customerId,
       priceId: jobContract.priceId,
-      invoiceId: contractPayment?.invoiceId || null,
+      title: jobAd.title,
       serviceProviderAccountId: jobVacancy.serviceProviderStripeAccountId,
     };
   } catch (error) {
@@ -333,14 +262,24 @@ async function fetchDataForPayment(jobAdId, clientId) {
   }
 }
 
-async function payInvoice(jobAdId, type, serviceProviderAccountId, customerId, priceId, invoiceId) {
+async function createCheckoutSession(jobAdId, type, serviceProviderAccountId, customerId, priceId, title) {
   try {
     const session = await stripe.checkout.sessions.create(
       {
-        payment_method_types: ['card'],
+        payment_method_types: ["card"],
         mode: "payment",
+        payment_intent_data: {
+          application_fee_amount: 123,
+          setup_future_usage: "off_session",
+        },
         invoice_creation: {
           enabled: true,
+          invoice_data: {
+            description: `Invoice for completed job - ${title}, job ID: ${jobAdId}`,
+            rendering_options: {
+              amount_tax_display: "include_inclusive_tax",
+            },
+          },
         },
         customer: customerId,
         line_items: [
@@ -349,12 +288,9 @@ async function payInvoice(jobAdId, type, serviceProviderAccountId, customerId, p
             quantity: 1,
           },
         ],
-        payment_intent_data: {
-          application_fee_amount: 123,
-          description: `Payment for invoice ${invoiceId}`,
-        },
         metadata: {
-          invoice_id: invoiceId,
+          price_id: priceId,
+          customer_id: customerId,
           jobAdId: jobAdId,
         },
         success_url: `http://localhost:8080/client/${type}/payment-status?session_id={CHECKOUT_SESSION_ID}&jobId=${jobAdId}`,
@@ -371,41 +307,194 @@ async function payInvoice(jobAdId, type, serviceProviderAccountId, customerId, p
   }
 }
 
-async function checkIfInvoicePaid(serviceProviderStripeAccountId, sessionId) {
+async function retrieveCheckoutSession(sessionId, serviceProviderStripeAccountId) {
+  return await stripe.checkout.sessions.retrieve(sessionId, {
+    stripeAccount: serviceProviderStripeAccountId,
+  });
+}
+
+async function retrieveInvoice(invoiceId, serviceProviderStripeAccountId) {
+  return await stripe.invoices.retrieve(invoiceId, {
+    stripeAccount: serviceProviderStripeAccountId,
+  });
+}
+
+async function generateClientInvoice(invoiceData) {
+  const { number, created, due_date, account_name, customer_email, customer_name, subtotal, total, amount_due, description, currency, lines } = invoiceData;
+  const createdDate = format(new Date(created * 1000), "MMMM dd, yyyy");
+  const dueDate = format(new Date(due_date * 1000), "MMMM dd, yyyy");
+  const formattedTotal = new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: currency,
+    minimumFractionDigits: 2,
+  }).format(total / 100);
+  const formattedSubtotal = new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: currency,
+    minimumFractionDigits: 2,
+  }).format(subtotal / 100);
+  const formattedAmount = new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: currency,
+    minimumFractionDigits: 2,
+  }).format(amount_due / 100);
+
+  const doc = new PDFDocument();
+  let buffers = [];
+
+  doc.on("data", buffers.push.bind(buffers));
+
+  const finishPDF = new Promise((resolve, reject) => {
+    doc.on("end", () => {
+      console.log("PDF generation finished, resolving promise.");
+      resolve(Buffer.concat(buffers));
+    });
+    doc.on("error", reject);
+  });
+
+  doc.font("Helvetica-Bold").fontSize(18).text("Invoice", { align: "left" });
+
+  doc
+    .moveDown()
+    .fontSize(10)
+    .font("Helvetica-Bold")
+    .text(`Invoice number: ${number}`, { align: "left" })
+    .moveDown(0.5)
+    .text(`Date of issue: ${createdDate}`, { align: "left" })
+    .moveDown(0.5)
+    .text(`Date due: ${dueDate}`, { align: "left" })
+    .moveDown(2);
+
+  doc.moveDown(1).fontSize(10).font("Helvetica-Bold").text(account_name, { align: "left" }).moveDown(1.5);
+
+  doc.font("Helvetica-Bold").fontSize(10).text("Bill to", 300, doc.y);
+  doc.font("Helvetica").fontSize(10).text(`${customer_name}`, 300, doc.y).text(`${customer_email}`, 300, doc.y).moveDown(2);
+
+  doc.font("Helvetica-Bold").fontSize(12).text(`${formattedTotal} due ${dueDate}`, 50, doc.y, { align: "left" }).moveDown(0.5);
+
+  doc.font("Helvetica").fontSize(10).text(`${description}`, { align: "left" }).moveDown(2);
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(10)
+    .text("Description", 60, doc.y, { continued: true })
+    .text("Qty", 250, doc.y, { continued: true })
+    .text("Unit price", 310, doc.y, { continued: true })
+    .text("Amount", 370, doc.y, { continued: true })
+    .moveDown(1);
+
+  doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke().moveDown(1);
+
+  lines.data.forEach((lineItem) => {
+    const unitAmount = parseFloat(lineItem.price.unit_amount_decimal) / 100;
+    const quantity = lineItem.quantity;
+    const itemDescription = lineItem.description;
+    const totalAmount = unitAmount * quantity;
+
+    const formattedUnitAmount = new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: currency,
+      minimumFractionDigits: 2,
+    }).format(unitAmount);
+
+    const formattedTotalAmount = new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: currency,
+      minimumFractionDigits: 2,
+    }).format(totalAmount);
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .text(itemDescription, -95, doc.y, { align: "left", continued: true }) // Align with 'Description'
+      .text(quantity.toString(), 125, doc.y, { align: "left", continued: true }) // Align 'Qty' right
+      .text(formattedUnitAmount, 190, doc.y, { align: "left", continued: true }) // Align 'Unit price' right
+      .text(formattedTotalAmount, 240, doc.y, { align: "left", continued: true }) // Align 'Amount' right
+      .moveDown(3);
+  });
+
+  doc.strokeColor("lightgrey").moveTo(300, doc.y).lineTo(550, doc.y).stroke().moveDown(0.6);
+
+  doc.font("Helvetica").fontSize(10).text("Subtotal", 0, doc.y, { continued: true }).text(formattedSubtotal, 150, doc.y, { align: "left" }).moveDown(0.5);
+
+  doc.strokeColor("lightgrey").moveTo(300, doc.y).lineTo(550, doc.y).stroke().moveDown(0.6);
+
+  doc.font("Helvetica").fontSize(10).text("Total", 300, doc.y, { continued: true }).text(formattedTotal, 470, doc.y, { align: "left" }).moveDown(0.5);
+
+  doc.strokeColor("lightgrey").moveTo(300, doc.y).lineTo(550, doc.y).stroke().moveDown(0.6);
+
+  doc.font("Helvetica-Bold").fontSize(10).text("Amount due", 300, doc.y, { continued: true }).text(formattedAmount, 435, doc.y, { align: "left" });
+  console.log("Calling doc.end()...");
+  doc.end();
+
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      stripeAccount: serviceProviderStripeAccountId,
-    });
-
-    const invoiceId = session.metadata.invoice_id;
-
-    if (!invoiceId) {
-      throw new Error('No invoice ID found in session metadata.');
-    }
-
-    const invoice = await stripe.invoices.retrieve(invoiceId, {
-      stripeAccount: serviceProviderStripeAccountId,
-    });
-
-    if (invoice.status === 'open') {
-      const paidInvoice = await stripe.invoices.pay(invoiceId, {
-        stripeAccount: serviceProviderStripeAccountId,
-      });
-
-      if (paidInvoice.status === 'paid') {
-        console.log(`Invoice ${invoiceId} successfully marked as paid.`);
-        return { status: 'paid', invoiceId };
-      } else {
-        console.log(`Failed to mark invoice ${invoiceId} as paid.`);
-        return { status: 'open', invoiceId };
-      }
-    } else {
-      console.log(`Invoice ${invoiceId} is already marked as ${invoice.status}.`);
-      return { status: invoice.status, invoiceId };  
-    }
+    console.log("Waiting for finishPDF promise to resolve...");
+    const pdfData = await finishPDF;
+    console.log("PDF Buffer Size:", pdfData.length);
+    await _saveInvoiceToDatabase(pdfData, invoiceData.id);
+    return { success: true, pdfData };
   } catch (error) {
-    console.error('Error verifying or paying invoice:', error.message);
-    return { status: 'error', message: error.message };
+    console.error("Error processing contract:", error);
+    return { success: false, error };
+  }
+}
+
+async function fetchInvoicePDFByJobId(jobAdId) {
+  const jobContract = await JobContract.findOne({
+    where: { jobAdId: jobAdId },
+  });
+  console.log("JobContract:", jobContract);
+
+  const contractPayment = await ContractPayment.findOne({
+    where: { jobContractId: jobContract.id },
+  });
+  console.log("ContractPayment:", contractPayment);
+  return contractPayment.invoicePdf;
+}
+
+async function _saveInvoiceToDatabase(pdfData, invoiceId) {
+  try {
+    const [updatedRowCount] = await ContractPayment.update(
+      {
+        invoicePdf: pdfData,
+      },
+      {
+        where: { invoiceId },
+      }
+    );
+
+    if (updatedRowCount === 0) {
+      console.error(`No contract payment found with invoiceId: ${invoiceId}. Invoice not saved.`);
+      return null;
+    }
+
+    console.log(`Invoice PDF saved successfully for invoiceId: ${invoiceId}`);
+    return updatedRowCount;
+  } catch (error) {
+    console.error(`Error saving invoice PDF to database for invoiceId: ${invoiceId}:`, error);
+    throw error;
+  }
+}
+
+async function updateJobVacancyApplicationStatus(jobAdId, serviceProviderStripeAccountId) {
+  try {
+    const updateStatus = await JobVacancy.update(
+      {
+        applicationStatus: "completed",
+      },
+      {
+        where: {
+          jobAdId,
+          serviceProviderStripeAccountId: {
+            [Op.eq]: serviceProviderStripeAccountId,
+          },
+        },
+      }
+    );
+    console.log(`Job Vacancy status updated for jobAdId ${jobAdId}: completed for ID ${serviceProviderStripeAccountId}.`);
+    return updateStatus;
+  } catch (error) {
+    console.error("Error updating job vacancy status:", error);
+    throw error;
   }
 }
 
@@ -445,13 +534,13 @@ export {
   fetchServiceProviderStripeAccount,
   saveProductAndPriceByJobAdId,
   saveCustomerByClientAndJobId,
-  ensureCustomerEmail,
-  createInvoice,
-  createInvoiceItem,
-  finalizeInvoice,
-  createOrUpdateContractPayment,
-  fetchDataForCreatingProductAndInvoice,
+  fetchDataForCreatingProductAndPrice,
   fetchDataForPayment,
-  payInvoice,
-  checkIfInvoicePaid,
+  createCheckoutSession,
+  retrieveCheckoutSession,
+  retrieveInvoice,
+  generateClientInvoice,
+  fetchInvoicePDFByJobId,
+  updateJobVacancyApplicationStatus,
+  createOrUpdateContractPayment,
 };

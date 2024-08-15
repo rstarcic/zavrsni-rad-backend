@@ -16,6 +16,10 @@ const ContractPayment = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    invoicePdf: {
+      type: DataTypes.BLOB,
+      allowNull: true,
+    },
     sessionId: {
       type: DataTypes.STRING,
       allowNull: true,
