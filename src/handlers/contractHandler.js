@@ -483,32 +483,7 @@ async function _updateJobVacancyJobStatus(jobAdId, serviceProviderId ) {
 }
 
 function _calculateTotalPay(duration, hourlyRate, workingHours) {
-    const durationRegex = /^(\d+)\s*(day|week|month)s?$/;
-    const match = duration.match(durationRegex);
-
-    if (!match) {
-        throw new Error("Invalid duration format. Please use 'number day/week/month'.");
-    }
-
-    const quantity = parseInt(match[1]);
-    const unit = match[2];
-
-    let totalHours = 0;
-    switch (unit) {
-        case 'day':
-            totalHours = quantity * workingHours;
-            break;
-        case 'week':
-            totalHours = quantity * workingHours * 7; 
-            break;
-        case 'month':
-            totalHours = quantity * workingHours * 7 * 4.33;
-            break;
-        default:
-            throw new Error("Invalid duration unit. Please use 'day', 'week', or 'month'.");
-    }
-
-    return totalHours * hourlyRate;
+    return duration * hourlyRate * workingHours;
 }
 
 export {
