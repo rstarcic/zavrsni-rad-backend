@@ -1087,7 +1087,7 @@ router.route("/jobs/summary").get(async (req, res) => {
 });
 
 router.route("/jobs/home").get(async (req, res) => {
-  const limit = parseInt(req.query.limit, 9) || 12;
+  const limit = parseInt(req.query.limit) || 12;
   try {
     const jobsFetched = await fetchJobsSummariesForHomePage(limit);
     console.log("Jobs summary fetched:", jobsFetched);
