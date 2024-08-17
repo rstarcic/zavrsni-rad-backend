@@ -27,8 +27,8 @@ async function createServiceProviderStripeAccount(serviceProviderId, email, coun
     });
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `http://localhost:8080/service-provider/${serviceProviderId}/stripe-onboarding?mode=refresh&account_id=${account.id}`,
-      return_url: `http://localhost:8080/service-provider/${serviceProviderId}/stripe-onboarding?mode=return&account_id=${account.id}`,
+      refresh_url: `${process.env.CLIENT_URL}/${serviceProviderId}/stripe-onboarding?mode=refresh&account_id=${account.id}`,
+      return_url: `${process.env.CLIENT_URL}/service-provider/${serviceProviderId}/stripe-onboarding?mode=return&account_id=${account.id}`,
       type: "account_onboarding",
     });
 
@@ -293,8 +293,8 @@ async function createCheckoutSession(jobAdId, type, serviceProviderAccountId, cu
           customer_id: customerId,
           jobAdId: jobAdId,
         },
-        success_url: `http://localhost:8080/client/${type}/payment-status?session_id={CHECKOUT_SESSION_ID}&jobId=${jobAdId}`,
-        cancel_url: `http://localhost:8080/client/${type}/payment-status?jobId=${jobAdId}`,
+        success_url: `${process.env.CLIENT_URL}/client/${type}/payment-status?session_id={CHECKOUT_SESSION_ID}&jobId=${jobAdId}`,
+        cancel_url: `${process.env.CLIENT_URL}/client/${type}/payment-status?jobId=${jobAdId}`,
       },
       {
         stripeAccount: serviceProviderAccountId,
